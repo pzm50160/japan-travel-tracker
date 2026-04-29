@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="日本記帳">
+<title>日本旅遊記帳 ✈️</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --orange:#E8682A;--orange-light:#FDF0EA;--orange-mid:#F5A878;
+  --bg:#F2F0EB;--surface:#FFF;--text:#1A1816;--text2:#6B6560;--text3:#A09890;
+  --border:#E5E2DC;--success:#2D9E6B;--danger:#E24B4A;
+  --radius:14px;--radius-sm:8px;
+}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+/* SYNC INDICATOR */
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;margin-left:5px;transition:background .3s}
+.sync-dot.syncing{background:#F59E0B;animation:pulse .8s infinite}
+.sync-dot.error{background:var(--danger)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* LOADING SCREEN */
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px}
+.loading-screen.hidden{display:none}
+.loading-logo{font-size:52px}
+.loading-msg{font-size:14px;color:var(--text2)}
+.loading-spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* TRIP SELECT SCREEN */
+.trip-screen{position:fixed;inset:0;background:var(--bg);z-index:500;overflow-y:auto;padding:24px 16px;display:none;flex-direction:column;max-width:480px;margin:0 auto}
+.trip-screen.show{display:flex}
+.trip-screen-title{font-size:22px;font-weight:700;margin-bottom:4px}
+.trip-screen-sub{font-size:13px;color:var(--text2);margin-bottom:24px}
+.trip-card-select{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .2s}
+.trip-card-select:hover{border-color:var(--orange)}
+.trip-card-name{font-size:15px;font-weight:600;margin-bottom:3px}
+.trip-card-sub{font-size:12px;color:var(--text2)}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--text3);font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+/* NAV */
+.nav{display:flex;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.nav-btn{flex:1;padding:11px 3px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:10px;color:var(--text3);transition:color .2s}
+.nav-btn.active{color:var(--orange)}
+.nav-btn svg{width:20px;height:20px}
+/* PAGES */
+.page{display:none;padding:14px;max-width:480px;margin:0 auto;padding-bottom:80px}
+.page.active{display:block}
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px}
+/* HOME */
+.hero-photos{display:flex;justify-content:center;margin:-14px -14px 14px;padding:20px 14px 0;background:linear-gradient(180deg,#E8E5DE 0%,var(--bg) 100%);height:165px;position:relative;overflow:hidden}
+.photo-card{width:108px;height:136px;border-radius:10px;border:3px solid white;position:absolute;box-shadow:0 4px 14px rgba(0,0,0,0.13);display:flex;align-items:center;justify-content:center;font-size:34px}
+.photo-card:nth-child(1){left:50%;transform:translateX(-74px) rotate(-8deg);bottom:0;z-index:1}
+.photo-card:nth-child(2){left:50%;transform:translateX(-50%);bottom:0;z-index:3}
+.photo-card:nth-child(3){left:50%;transform:translateX(-4px) rotate(8deg);bottom:0;z-index:2}
+.trip-title{text-align:center;font-size:19px;font-weight:700;margin-bottom:13px}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
+.stat-label{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:5px;margin-bottom:6px}
+.stat-icon{width:25px;height:25px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.stat-amount{font-size:21px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:-0.5px}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:2px}
+.progress-bar{height:5px;background:#EEE;border-radius:3px;margin-top:6px;overflow:hidden}
+.progress-fill{height:100%;background:var(--success);border-radius:3px;transition:width .8s ease}
+.day-num{font-size:22px;font-weight:700}
+.section-title{font-size:13px;font-weight:500;color:var(--text2);margin:13px 0 7px}
+/* EXPENSE ROW */
+.expense-row{display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:7px;cursor:pointer;transition:border-color .15s}
+.expense-row:hover{border-color:var(--orange-mid)}
+.avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid var(--border)}
+.expense-info{flex:1;min-width:0}
+.expense-name{font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.expense-tags{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.tag{font-size:10px;padding:2px 6px;border-radius:20px;font-weight:500}
+.tag-cat{background:#FEF3E2;color:#B45309}
+.tag-split{background:#EFF6FF;color:#1D4ED8}
+.tag-pay{color:var(--text3);font-size:10px}
+.tag-store{color:var(--text3);font-size:10px}
+.expense-right{flex-shrink:0;text-align:right}
+.amount-jpy{font-size:13px;font-weight:600;font-family:'DM Mono',monospace}
+.amount-twd{font-size:10px;color:var(--text3);margin-top:1px}
+.payer-avatars{display:flex;justify-content:flex-end;margin-top:4px}
+.payer-av{width:20px;height:20px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;border:1.5px solid white;margin-left:-5px}
+.payer-av:first-child{margin-left:0}
+/* RECORDS */
+.total-banner{background:var(--orange-light);border-radius:var(--radius);padding:13px;margin-bottom:13px;border:1px solid #F5C9A8}
+.total-banner-label{font-size:12px;color:var(--orange);margin-bottom:4px}
+.total-banner-amount{font-size:27px;font-weight:700;font-family:'DM Mono',monospace}
+.total-banner-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.tab-toggle{display:flex;background:var(--bg);border-radius:9px;padding:3px;margin-bottom:13px}
+.tab-btn{flex:1;padding:6px;text-align:center;font-size:12px;font-weight:500;border:none;background:transparent;border-radius:7px;cursor:pointer;font-family:inherit;color:var(--text2);transition:all .2s}
+.tab-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.08)}
+.date-group{margin-bottom:16px}
+.date-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.date-label{font-size:13px;font-weight:500}
+.date-total{font-size:11px;color:var(--text2)}
+/* SPLIT */
+.split-summary{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:11px;overflow:hidden}
+.split-summary-header{padding:13px 15px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.split-summary-title{font-size:14px;font-weight:700}
+.member-balance-row{display:flex;align-items:center;gap:11px;padding:11px 15px;border-bottom:1px solid var(--border)}
+.member-balance-row:last-child{border-bottom:none}
+.mb-avatar{width:38px;height:38px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;border:2px solid var(--border)}
+.mb-info{flex:1}
+.mb-name{font-size:13px;font-weight:500;margin-bottom:2px}
+.mb-detail{font-size:10px;color:var(--text2)}
+.mb-balance{font-size:14px;font-weight:700;font-family:'DM Mono',monospace}
+.mb-balance.pos{color:var(--success)}
+.mb-balance.neg{color:var(--danger)}
+.mb-balance.zero{color:var(--text3)}
+.settle-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:11px;overflow:hidden}
+.settle-header{padding:13px 15px;border-bottom:1px solid var(--border);font-size:14px;font-weight:700}
+.settle-row{display:flex;align-items:center;gap:9px;padding:12px 15px;border-bottom:1px solid var(--border)}
+.settle-row:last-child{border-bottom:none}
+.settle-from{display:flex;align-items:center;gap:6px;flex:1}
+.settle-to{display:flex;align-items:center;gap:6px;flex:1;justify-content:flex-end}
+.settle-amt{font-size:14px;font-weight:700;font-family:'DM Mono',monospace;color:var(--danger);flex-shrink:0;min-width:70px;text-align:center}
+.settle-name{font-size:11px;color:var(--text2)}
+.settle-av{width:30px;height:30px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:15px;border:2px solid var(--border)}
+/* SCAN */
+.scan-area{border:2px dashed var(--border);border-radius:var(--radius);padding:34px 18px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--surface)}
+.scan-area:hover,.scan-area.drag{border-color:var(--orange);background:var(--orange-light)}
+.scan-icon{font-size:42px;margin-bottom:9px}
+.scan-title{font-size:14px;font-weight:500;margin-bottom:4px}
+.scan-sub{font-size:12px;color:var(--text2)}
+#fileInput{display:none}
+.preview-img{width:100%;border-radius:var(--radius-sm);margin:9px 0;max-height:250px;object-fit:contain}
+.loading-bar{background:var(--orange-light);border-radius:var(--radius);padding:16px;text-align:center;margin:9px 0}
+.loading-text{color:var(--orange);font-weight:500;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-spinner{width:15px;height:15px;border:2px solid var(--orange-light);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+.result-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-top:9px}
+.result-header{padding:13px 15px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start}
+.store-name{font-size:14px;font-weight:600}
+.store-original{font-size:11px;color:var(--text2);margin-top:2px}
+.result-date{font-size:11px;color:var(--orange);font-weight:500}
+.items-header{padding:10px 15px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.items-title{font-size:13px;font-weight:600}
+.add-item-btn{font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;font-family:inherit;font-weight:500}
+.result-item{display:flex;align-items:flex-start;gap:9px;padding:10px 15px;border-bottom:1px solid var(--border)}
+.item-num{width:22px;height:22px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--text2);flex-shrink:0;margin-top:1px}
+.item-info{flex:1}
+.item-name{font-size:12px;font-weight:500}
+.item-sub{font-size:10px;color:var(--text2);margin-top:1px}
+.item-price{font-size:13px;font-weight:600;font-family:'DM Mono',monospace;flex-shrink:0}
+.confirm-btn{width:100%;padding:15px;background:var(--orange);color:white;border:none;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.confirm-btn:hover{background:#D05820}
+/* STATS */
+.chart-wrap{position:relative;height:185px;width:100%}
+.donut-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.donut-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
+.donut-title{font-size:12px;font-weight:500;margin-bottom:8px}
+.donut-wrap{position:relative;height:115px}
+.legend-list{margin-top:8px}
+.legend-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px}
+.legend-left{display:flex;align-items:center;gap:5px}
+.legend-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.legend-label{color:var(--text2)}
+.legend-right{display:flex;gap:6px;align-items:center}
+.legend-pct{color:var(--text3);font-size:10px}
+.legend-val{font-weight:500;font-family:'DM Mono',monospace;font-size:10px}
+.top10-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+.top10-rank{width:16px;font-size:11px;font-weight:700;color:var(--text3);text-align:center;flex-shrink:0}
+.top10-rank.top3{color:var(--orange)}
+.top10-bar-wrap{flex:1}
+.top10-name{font-size:12px;font-weight:500;margin-bottom:2px}
+.top10-bar{height:3px;background:var(--orange-light);border-radius:2px;overflow:hidden}
+.top10-bar-fill{height:100%;background:var(--orange);border-radius:2px}
+.top10-amt{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;flex-shrink:0}
+/* FAB */
+.fab{position:fixed;bottom:72px;right:17px;width:50px;height:50px;border-radius:50%;background:var(--orange);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(232,104,42,.4);z-index:99}
+.fab svg{width:21px;height:21px;fill:white}
+/* MODAL */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--surface);border-radius:18px 18px 0 0;padding:17px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:13px}
+.form-group{margin-bottom:11px}
+.form-label{font-size:12px;color:var(--text2);margin-bottom:4px;display:block;font-weight:500}
+.form-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none}
+.form-input:focus{border-color:var(--orange)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn-row{display:flex;gap:8px;margin-top:13px}
+.btn-cancel{flex:1;padding:10px;border:1px solid var(--border);background:transparent;border-radius:var(--radius-sm);font-size:13px;font-family:inherit;cursor:pointer;color:var(--text2)}
+.btn-save{flex:2;padding:10px;background:var(--orange);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
+.btn-save:disabled{opacity:.6;cursor:not-allowed}
+.select-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.select-opt{padding:7px 4px;text-align:center;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;transition:all .15s;font-family:inherit;background:var(--surface);color:var(--text2)}
+.select-opt.sel{border-color:var(--orange);background:var(--orange-light);color:var(--orange);font-weight:500}
+.avatar-select{display:flex;gap:7px;flex-wrap:wrap}
+.av-opt{width:38px;height:38px;border-radius:50%;background:var(--bg);border:2px solid transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:19px;transition:border-color .15s;position:relative}
+.av-opt.sel{border-color:var(--orange)}
+.av-opt .av-check{position:absolute;bottom:-2px;right:-2px;width:13px;height:13px;border-radius:50%;background:var(--orange);display:none;align-items:center;justify-content:center;font-size:8px;color:white;border:1.5px solid white}
+.av-opt.sel .av-check{display:flex}
+/* SPLIT MODAL */
+.split-mode-toggle{display:flex;background:var(--bg);border-radius:8px;padding:3px;margin-bottom:11px}
+.split-mode-btn{flex:1;padding:6px;text-align:center;font-size:11px;font-weight:500;border:none;background:transparent;border-radius:6px;cursor:pointer;font-family:inherit;color:var(--text2);transition:all .15s}
+.split-mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+.participant-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border)}
+.participant-row:last-child{border-bottom:none}
+.participant-check{width:19px;height:19px;border-radius:5px;border:1.5px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.participant-check.checked{background:var(--orange);border-color:var(--orange)}
+.participant-av{width:30px;height:30px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.participant-name{flex:1;font-size:12px}
+.participant-share input{width:90px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:right;outline:none;background:var(--surface);color:var(--text)}
+.participant-share input:focus{border-color:var(--orange)}
+.split-total-check{display:flex;justify-content:space-between;padding:8px 0;font-size:11px;color:var(--text2);border-top:1px solid var(--border);margin-top:3px}
+.split-total-check span:last-child{font-family:'DM Mono',monospace;font-weight:600}
+.split-total-check.ok span:last-child{color:var(--success)}
+.split-total-check.err span:last-child{color:var(--danger)}
+/* INVITE */
+.invite-box{background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:12px;margin-top:10px}
+.invite-code{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:4px;color:var(--orange);text-align:center;margin:8px 0}
+/* TOAST */
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-80px);background:#1A1816;color:white;padding:9px 17px;border-radius:30px;font-size:12px;font-weight:500;z-index:999;transition:transform .3s ease;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.empty{text-align:center;padding:34px 18px;color:var(--text3)}
+.empty-icon{font-size:34px;margin-bottom:8px}
+@media(min-width:480px){body{background:#E8E5DE}.nav,.page{max-width:480px;margin:0 auto}}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-logo">✈️</div>
+  <div class="loading-spinner"></div>
+  <div class="loading-msg" id="loadingMsg">連接雲端中...</div>
+</div>
+
+<!-- TRIP SELECT SCREEN -->
+<div class="trip-screen" id="tripScreen">
+  <div class="trip-screen-title">日本旅遊記帳 ✈️</div>
+  <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
+  <div id="myTripsList"></div>
+  <div class="divider">或</div>
+  <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:10px" onclick="showCreateTrip()">＋ 建立新旅程</button>
+  <button class="btn-cancel" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm)" onclick="showJoinTrip()">🔗 輸入邀請碼加入旅程</button>
+
+  <!-- Create Trip Form -->
+  <div id="createTripForm" style="display:none;margin-top:16px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">建立新旅程</div>
+    <div class="form-group"><label class="form-label">旅程名稱</label><input class="form-input" id="newTripName" placeholder="日本中部北陸之旅"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">出發日期</label><input class="form-input" id="newTripStart" type="date"></div>
+      <div class="form-group"><label class="form-label">回程日期</label><input class="form-input" id="newTripEnd" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">總預算（日圓）</label><input class="form-input" id="newTripBudget" type="number" placeholder="550000"></div>
+      <div class="form-group"><label class="form-label">匯率 1JPY=TWD</label><input class="form-input" id="newTripRate" type="number" step="0.001" placeholder="0.206"></div>
+    </div>
+    <div class="form-group"><label class="form-label">你的名字</label><input class="form-input" id="newMemberName" placeholder="小美"></div>
+    <div class="form-group"><label class="form-label">選頭像</label><div style="display:flex;gap:8px;flex-wrap:wrap" id="createEmojiPicker"></div></div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="document.getElementById('createTripForm').style.display='none'">取消</button>
+      <button class="btn-save" id="createTripBtn" onclick="createTrip()">建立旅程</button>
+    </div>
+  </div>
+
+  <!-- Join Trip Form -->
+  <div id="joinTripForm" style="display:none;margin-top:16px">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px">加入旅程</div>
+    <div class="form-group"><label class="form-label">邀請碼（6位數）</label><input class="form-input" id="joinCode" placeholder="ABC123" style="letter-spacing:3px;font-family:'DM Mono',monospace;font-size:18px;text-transform:uppercase"></div>
+    <div class="form-group"><label class="form-label">你的名字</label><input class="form-input" id="joinMemberName" placeholder="小明"></div>
+    <div class="form-group"><label class="form-label">選頭像</label><div style="display:flex;gap:8px;flex-wrap:wrap" id="joinEmojiPicker"></div></div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="document.getElementById('joinTripForm').style.display='none'">取消</button>
+      <button class="btn-save" id="joinTripBtn" onclick="joinTrip()">加入旅程</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<nav class="nav" id="mainNav" style="display:none">
+  <button class="nav-btn active" onclick="goPage('home',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>首頁</button>
+  <button class="nav-btn" onclick="goPage('records',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>紀錄</button>
+  <button class="nav-btn" onclick="goPage('scan',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>掃描</button>
+  <button class="nav-btn" onclick="goPage('split',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M1 21v-2a7 7 0 0114 0v2"/><circle cx="17" cy="7" r="4"/><path d="M23 21v-2a5 5 0 00-4-4.9"/></svg>分攤</button>
+  <button class="nav-btn" onclick="goPage('stats',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>統計</button>
+  <button class="nav-btn" onclick="goPage('settings',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>設定</button>
+</nav>
+
+<div class="page active" id="page-home">
+  <div class="hero-photos">
+    <div class="photo-card">🗻</div><div class="photo-card">⛩️</div><div class="photo-card">🌸</div>
+  </div>
+  <div class="trip-title" id="tripTitle">載入中...</div>
+  <div style="text-align:center;margin-bottom:12px;font-size:12px;color:var(--text2)">
+    同步狀態 <span class="sync-dot" id="syncDot"></span>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-label"><div class="stat-icon" style="background:#FEF3E2">💳</div>今日支出</div><div class="stat-amount" id="todayAmount">¥0</div><div class="stat-sub" id="todaySub">≈ NT$0</div></div>
+    <div class="stat-card"><div class="stat-label"><div class="stat-icon" style="background:#EFF6FF">📊</div>旅程累計</div><div class="stat-amount" id="totalAmount">¥0</div><div class="stat-sub" id="totalSub">≈ NT$0</div></div>
+    <div class="stat-card"><div class="stat-label"><div class="stat-icon" style="background:#ECFDF5">🎯</div>預算進度</div><div class="stat-amount" id="budgetPct">0%</div><div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div></div>
+    <div class="stat-card"><div class="stat-label"><div class="stat-icon" style="background:#FFF7ED">📅</div>旅程天數</div><div class="day-num" id="dayNum">Day 1</div><div class="stat-sub" id="daySub">共 25 天</div></div>
+  </div>
+  <div class="section-title">今日花費</div>
+  <div id="todayExpenses"><div class="empty"><div class="empty-icon">📝</div><div>今天還沒有花費記錄</div></div></div>
+</div>
+
+<div class="page" id="page-records">
+  <div class="total-banner">
+    <div class="total-banner-label">📋 旅行總支出</div>
+    <div class="total-banner-amount" id="recTotalJPY">¥0</div>
+    <div class="total-banner-sub" id="recTotalSub">≈ NT$0 · 0 筆</div>
+  </div>
+  <div class="tab-toggle">
+    <button class="tab-btn active" onclick="switchTab('date',this)">按日期</button>
+    <button class="tab-btn" onclick="switchTab('cat',this)">按類別</button>
+    <button class="tab-btn" onclick="switchTab('member',this)">按成員</button>
+  </div>
+  <div id="recordsList"></div>
+</div>
+
+<div class="page" id="page-scan">
+  <h2 style="font-size:17px;font-weight:700;margin-bottom:3px">掃描收據</h2>
+  <p style="font-size:11px;color:var(--text2);margin-bottom:13px">AI 自動辨識日文收據並翻譯</p>
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="scan-area" id="scanArea" onclick="document.getElementById('fileInput').click()" ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')">
+      <div class="scan-icon">📷</div>
+      <div class="scan-title">點擊上傳收據</div>
+      <div class="scan-sub">支援 JPG、PNG</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
+    <div id="scanResult"></div>
+  </div>
+</div>
+
+<div class="page" id="page-split">
+  <h2 style="font-size:17px;font-weight:700;margin-bottom:3px">費用分攤</h2>
+  <p style="font-size:11px;color:var(--text2);margin-bottom:13px">誰欠誰多少，一目瞭然</p>
+  <div id="splitBalances"></div>
+  <div class="settle-card"><div class="settle-header">💸 建議還款方式</div><div id="settleList"></div></div>
+  <div class="card"><div style="font-size:13px;font-weight:600;margin-bottom:11px">各成員費用明細</div><div id="perMemberStats"></div></div>
+</div>
+
+<div class="page" id="page-stats">
+  <div class="donut-grid">
+    <div class="donut-card" style="grid-column:span 2"><div class="donut-title">每日消費趨勢</div><div class="chart-wrap"><canvas id="trendChart" role="img" aria-label="每日消費趨勢折線圖"></canvas></div></div>
+    <div class="donut-card"><div class="donut-title">分類支出</div><div class="donut-wrap"><canvas id="catChart" role="img" aria-label="分類支出圓餅圖"></canvas></div><div class="legend-list" id="catLegend"></div></div>
+    <div class="donut-card"><div class="donut-title">支付方式</div><div class="donut-wrap"><canvas id="payChart" role="img" aria-label="支付方式圓餅圖"></canvas></div><div class="legend-list" id="payLegend"></div></div>
+  </div>
+  <div class="card" style="margin-top:9px"><div style="font-size:12px;font-weight:600;margin-bottom:9px">花費金額前十名</div><div id="top10List"></div></div>
+</div>
+
+<div class="page" id="page-settings">
+  <h2 style="font-size:17px;font-weight:700;margin-bottom:13px">設定</h2>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">旅程資訊</div>
+    <div class="form-group"><label class="form-label">旅程名稱</label><input class="form-input" id="settingTripName" onchange="saveTripSetting()"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">出發日期</label><input class="form-input" id="settingStartDate" type="date" onchange="saveTripSetting()"></div>
+      <div class="form-group"><label class="form-label">回程日期</label><input class="form-input" id="settingEndDate" type="date" onchange="saveTripSetting()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">總預算（日圓）</label><input class="form-input" id="settingBudget" type="number" onchange="saveTripSetting()"></div>
+      <div class="form-group"><label class="form-label">匯率 1JPY=TWD</label><input class="form-input" id="settingRate" type="number" step="0.001" onchange="saveTripSetting()"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">📨 邀請旅伴</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:6px">把邀請碼傳給旅伴，他們開啟 App 輸入即可加入</div>
+    <div class="invite-box">
+      <div style="font-size:11px;color:var(--text2);text-align:center">邀請碼</div>
+      <div class="invite-code" id="inviteCodeDisplay">------</div>
+      <button class="btn-save" style="width:100%;padding:9px;font-size:12px;border-radius:6px" onclick="copyInviteCode()">複製邀請碼</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">旅行成員</div>
+    <div id="memberList"></div>
+  </div>
+  <div class="card">
+    <div style="font-size:12px;font-weight:600;margin-bottom:3px">Anthropic API Key</div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:8px">用於 AI 辨識收據（僅存本機）</div>
+    <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." oninput="saveApiKey()">
+    <div style="font-size:10px;color:var(--success);margin-top:4px" id="apiStatus"></div>
+  </div>
+  <div class="card">
+    <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px" onclick="leaveTrip()">🚪 離開此旅程</button>
+  </div>
+</div>
+
+<button class="fab" id="mainFab" onclick="openAddModal()" style="display:none"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-backdrop" id="addModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">新增花費</div>
+    <div class="form-group"><label class="form-label">付款人（誰出錢）</label><div class="avatar-select" id="modalPayerSelect"></div></div>
+    <div class="form-group"><label class="form-label">消費項目</label><input class="form-input" id="mName" placeholder="例：咖啡、麵包"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">金額（日圓）</label><input class="form-input" id="mAmt" type="number" placeholder="0" oninput="onAmtChange()"></div>
+      <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="mDate" type="date"></div>
+    </div>
+    <div class="form-group"><label class="form-label">類別</label><div class="select-grid" id="catSelect"></div></div>
+    <div class="form-group"><label class="form-label">支付方式</label><div class="select-grid" id="paySelect"></div></div>
+    <div class="form-group"><label class="form-label">店家（選填）</label><input class="form-input" id="mStore" placeholder="例：7-Eleven"></div>
+    <div style="border-top:1px solid var(--border);padding-top:11px;margin-top:3px">
+      <label class="form-label" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">💰 費用分攤</label>
+      <div class="split-mode-toggle">
+        <button class="split-mode-btn active" onclick="setSplitMode('equal',this)">平均分攤</button>
+        <button class="split-mode-btn" onclick="setSplitMode('custom',this)">自訂金額</button>
+        <button class="split-mode-btn" onclick="setSplitMode('payer',this)">付款人自付</button>
+      </div>
+      <div class="form-label">分攤對象</div>
+      <div id="participantList"></div>
+      <div class="split-total-check" id="splitTotalCheck" style="display:none"><span>已分配</span><span id="splitTotalVal">¥0 / ¥0</span></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeModal()">取消</button>
+      <button class="btn-save" id="saveBtn" onclick="saveExpense()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const CATS=['餐飲','交通','住宿','購物','門票','藥品','其他'];
+const PAYS=['現金','信用卡','PayPay','Suica','iD'];
+const EMOJIS=['😊','😎','🧑','👩','👦','👧','🧑‍💻','👩‍🦱','🧔','👱','🙋','🎒'];
+const CAT_COLORS=['#F59E0B','#3B82F6','#10B981','#EC4899','#8B5CF6','#EF4444','#6B7280'];
+const PAY_COLORS=['#22C55E','#3B82F6','#EC4899','#06B6D4','#F97316'];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let state = {
+  tripId: null, trip: null,
+  expenses: [], members: [],
+  myMemberId: null,
+  apiKey: '',
+  editId: null,
+  selectedPayer: null, selectedCat: '餐飲', selectedPay: '現金',
+  splitMode: 'equal', participants: {},
+};
+let charts = {trend:null,cat:null,pay:null};
+let recTab = 'date';
+let realtimeSub = null;
+let selEmoji = EMOJIS[0];
+let createSelEmoji = EMOJIS[0];
+let joinSelEmoji = EMOJIS[0];
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  state.apiKey = localStorage.getItem('jpApiKey') || '';
+  const savedTripId = localStorage.getItem('jpTripId');
+  const savedMemberId = localStorage.getItem('jpMemberId');
+
+  if (savedTripId && savedMemberId) {
+    setLoading('連接雲端中...');
+    try {
+      const { data: trip } = await sb.from('trips').select('*').eq('id', savedTripId).single();
+      if (trip) {
+        state.tripId = savedTripId;
+        state.myMemberId = savedMemberId;
+        state.trip = trip;
+        await loadAll();
+        showApp();
+        subscribeRealtime();
+        return;
+      }
+    } catch(e) {}
+  }
+  hideLoading();
+  showTripScreen();
+}
+
+function setLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg;
+  document.getElementById('loadingScreen').classList.remove('hidden');
+}
+function hideLoading() { document.getElementById('loadingScreen').classList.add('hidden'); }
+function showApp() {
+  hideLoading();
+  document.getElementById('tripScreen').classList.remove('show');
+  document.getElementById('mainNav').style.display = 'flex';
+  document.getElementById('mainFab').style.display = 'flex';
+  renderHome();
+}
+function showTripScreen() {
+  document.getElementById('tripScreen').classList.add('show');
+  renderMyTrips();
+  renderEmojiPickers();
+}
+
+// ─── TRIP MANAGEMENT ──────────────────────────────────────────────────────────
+async function renderMyTrips() {
+  const saved = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+  const cont = document.getElementById('myTripsList');
+  if (!saved.length) { cont.innerHTML = ''; return; }
+  const ids = saved.map(t => t.id);
+  const { data: trips } = await sb.from('trips').select('*').in('id', ids);
+  if (!trips || !trips.length) { cont.innerHTML = ''; return; }
+  cont.innerHTML = '<div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">我的旅程</div>' +
+    trips.map(t => {
+      const myInfo = saved.find(s => s.id === t.id);
+      return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${myInfo?.memberId||''}')">
+        <div class="trip-card-name">✈️ ${t.name}</div>
+        <div class="trip-card-sub">${t.start_date} ～ ${t.end_date}</div>
+      </div>`;
+    }).join('');
+}
+
+async function selectTrip(tripId, memberId) {
+  setLoading('載入旅程...');
+  state.tripId = tripId;
+  state.myMemberId = memberId;
+  localStorage.setItem('jpTripId', tripId);
+  localStorage.setItem('jpMemberId', memberId);
+  const { data: trip } = await sb.from('trips').select('*').eq('id', tripId).single();
+  state.trip = trip;
+  await loadAll();
+  showApp();
+  subscribeRealtime();
+}
+
+function showCreateTrip() {
+  document.getElementById('createTripForm').style.display = 'block';
+  document.getElementById('joinTripForm').style.display = 'none';
+}
+function showJoinTrip() {
+  document.getElementById('joinTripForm').style.display = 'block';
+  document.getElementById('createTripForm').style.display = 'none';
+}
+
+function renderEmojiPickers() {
+  ['createEmojiPicker','joinEmojiPicker'].forEach((pid, idx) => {
+    document.getElementById(pid).innerHTML = EMOJIS.map(e =>
+      `<span style="font-size:24px;cursor:pointer;padding:4px;border-radius:7px;border:2px solid ${e===EMOJIS[0]?'var(--orange)':'transparent'}" onclick="selectCreateEmoji(this,'${e}',${idx})">${e}</span>`
+    ).join('');
+  });
+}
+function selectCreateEmoji(el, e, idx) {
+  const pid = idx===0 ? 'createEmojiPicker' : 'joinEmojiPicker';
+  document.querySelectorAll('#'+pid+' span').forEach(s=>s.style.borderColor='transparent');
+  el.style.borderColor = 'var(--orange)';
+  if (idx===0) createSelEmoji = e; else joinSelEmoji = e;
+}
+
+function genInviteCode() {
+  return Math.random().toString(36).substring(2,8).toUpperCase();
+}
+
+async function createTrip() {
+  const name = document.getElementById('newTripName').value.trim();
+  const memberName = document.getElementById('newMemberName').value.trim();
+  if (!name || !memberName) { showToast('請填寫旅程名稱和你的名字'); return; }
+  const btn = document.getElementById('createTripBtn');
+  btn.disabled = true; btn.textContent = '建立中...';
+  try {
+    const tripId = 'trip_' + Date.now();
+    const memberId = 'mb_' + Date.now();
+    const inviteCode = genInviteCode();
+    const trip = {
+      id: tripId, name,
+      start_date: document.getElementById('newTripStart').value || new Date().toISOString().split('T')[0],
+      end_date: document.getElementById('newTripEnd').value || new Date().toISOString().split('T')[0],
+      budget: parseInt(document.getElementById('newTripBudget').value) || 550000,
+      rate: parseFloat(document.getElementById('newTripRate').value) || 0.206,
+      invite_code: inviteCode,
+    };
+    await sb.from('trips').insert(trip);
+    await sb.from('members').insert({ id: memberId, name: memberName, emoji: createSelEmoji, trip_id: tripId });
+    // Save locally
+    const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+    myTrips.push({ id: tripId, memberId });
+    localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
+    localStorage.setItem('jpTripId', tripId);
+    localStorage.setItem('jpMemberId', memberId);
+    state.tripId = tripId; state.myMemberId = memberId; state.trip = trip;
+    await loadAll();
+    showApp();
+    subscribeRealtime();
+  } catch(e) { showToast('建立失敗：' + e.message); }
+  btn.disabled = false; btn.textContent = '建立旅程';
+}
+
+async function joinTrip() {
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  const memberName = document.getElementById('joinMemberName').value.trim();
+  if (!code || !memberName) { showToast('請填寫邀請碼和你的名字'); return; }
+  const btn = document.getElementById('joinTripBtn');
+  btn.disabled = true; btn.textContent = '加入中...';
+  try {
+    const { data: trip } = await sb.from('trips').select('*').eq('invite_code', code).single();
+    if (!trip) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='加入旅程'; return; }
+    const memberId = 'mb_' + Date.now();
+    await sb.from('members').insert({ id: memberId, name: memberName, emoji: joinSelEmoji, trip_id: trip.id });
+    const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+    myTrips.push({ id: trip.id, memberId });
+    localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
+    localStorage.setItem('jpTripId', trip.id);
+    localStorage.setItem('jpMemberId', memberId);
+    state.tripId = trip.id; state.myMemberId = memberId; state.trip = trip;
+    await loadAll();
+    showApp();
+    subscribeRealtime();
+  } catch(e) { showToast('加入失敗：' + e.message); }
+  btn.disabled = false; btn.textContent = '加入旅程';
+}
+
+function leaveTrip() {
+  if (!confirm('確定要離開此旅程？')) return;
+  const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]').filter(t => t.id !== state.tripId);
+  localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
+  localStorage.removeItem('jpTripId');
+  localStorage.removeItem('jpMemberId');
+  if (realtimeSub) sb.removeChannel(realtimeSub);
+  location.reload();
+}
+
+// ─── DATA LOADING ─────────────────────────────────────────────────────────────
+async function loadAll() {
+  const [{ data: expenses }, { data: members }] = await Promise.all([
+    sb.from('expenses').select('*').eq('trip_id', state.tripId).order('created_at', { ascending: false }),
+    sb.from('members').select('*').eq('trip_id', state.tripId),
+  ]);
+  state.expenses = expenses || [];
+  state.members = members || [];
+  if (!state.selectedPayer) state.selectedPayer = state.myMemberId || state.members[0]?.id;
+}
+
+// ─── REALTIME SYNC ────────────────────────────────────────────────────────────
+function setSyncDot(status) {
+  const dot = document.getElementById('syncDot');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (status==='syncing'?' syncing':status==='error'?' error':'');
+}
+
+function subscribeRealtime() {
+  if (realtimeSub) sb.removeChannel(realtimeSub);
+  realtimeSub = sb.channel('trip_' + state.tripId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `trip_id=eq.${state.tripId}` }, async (payload) => {
+      setSyncDot('syncing');
+      await loadAll();
+      setSyncDot('');
+      const cur = document.querySelector('.page.active')?.id;
+      if (cur==='page-home') renderHome();
+      else if (cur==='page-records') renderRecords();
+      else if (cur==='page-split') renderSplit();
+      else if (cur==='page-stats') renderStats();
+      showToast('✨ 資料已同步');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `trip_id=eq.${state.tripId}` }, async () => {
+      await loadAll();
+      const cur = document.querySelector('.page.active')?.id;
+      if (cur==='page-settings') renderSettings();
+    })
+    .subscribe();
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const memberOf = id => state.members.find(m=>m.id===id) || {emoji:'👤',name:'?',id};
+const fmtJPY = n => '¥' + Math.round(n).toLocaleString();
+const fmtTWD = n => 'NT$' + Math.round(n * (state.trip?.rate || 0.206)).toLocaleString();
+
+function getShares(exp) {
+  const shares = {};
+  if (exp.split_mode==='payer') { shares[exp.payer_id] = exp.amount; return shares; }
+  if (exp.split_mode==='custom') {
+    Object.entries(exp.participants||{}).forEach(([mid,amt])=>{ if(amt>0) shares[mid]=(shares[mid]||0)+amt; });
+    return shares;
+  }
+  const pp = Object.entries(exp.participants||{}).filter(([,v])=>v).map(([k])=>k);
+  if (!pp.length) { shares[exp.payer_id]=exp.amount; return shares; }
+  const each = exp.amount / pp.length;
+  pp.forEach(mid => shares[mid] = (shares[mid]||0) + each);
+  return shares;
+}
+
+function calcBalances() {
+  const net = {};
+  state.members.forEach(m => net[m.id] = 0);
+  state.expenses.forEach(exp => {
+    if (!(exp.payer_id in net)) net[exp.payer_id] = 0;
+    net[exp.payer_id] += exp.amount;
+    const shares = getShares(exp);
+    Object.entries(shares).forEach(([mid,amt]) => { if(!(mid in net))net[mid]=0; net[mid]-=amt; });
+  });
+  return net;
+}
+
+function calcSettlements(net) {
+  const cred=[], debt=[];
+  Object.entries(net).forEach(([id,bal])=>{ if(bal>0.5)cred.push({id,bal}); else if(bal<-0.5)debt.push({id,bal:-bal}); });
+  cred.sort((a,b)=>b.bal-a.bal); debt.sort((a,b)=>b.bal-a.bal);
+  const txns=[]; let ci=0,di=0;
+  while(ci<cred.length&&di<debt.length){
+    const c=cred[ci],d=debt[di]; const amt=Math.min(c.bal,d.bal);
+    txns.push({from:d.id,to:c.id,amount:Math.round(amt)});
+    c.bal-=amt; d.bal-=amt;
+    if(c.bal<0.5)ci++; if(d.bal<0.5)di++;
+  }
+  return txns;
+}
+
+// ─── NAV ──────────────────────────────────────────────────────────────────────
+function goPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='home')renderHome();
+  else if(id==='records')renderRecords();
+  else if(id==='split')renderSplit();
+  else if(id==='stats')renderStats();
+  else if(id==='settings')renderSettings();
+}
+
+// ─── HOME ──────────────────────────────────────────────────────────────────────
+function renderHome() {
+  if (!state.trip) return;
+  const t = state.trip;
+  document.getElementById('tripTitle').textContent = t.name;
+  const today = new Date().toISOString().split('T')[0];
+  const start = new Date(t.start_date), end = new Date(t.end_date), now = new Date();
+  const day = Math.max(1, Math.min(Math.ceil((now-start)/86400000)+1, Math.ceil((end-start)/86400000)));
+  const total = Math.ceil((end-start)/86400000);
+  document.getElementById('dayNum').textContent = 'Day ' + day;
+  document.getElementById('daySub').textContent = '共 ' + total + ' 天';
+  const todayExp = state.expenses.filter(e=>e.date===today);
+  const allTotal = state.expenses.reduce((a,e)=>a+e.amount,0);
+  const todayTotal = todayExp.reduce((a,e)=>a+e.amount,0);
+  document.getElementById('todayAmount').textContent = fmtJPY(todayTotal);
+  document.getElementById('todaySub').textContent = '≈ ' + fmtTWD(todayTotal);
+  document.getElementById('totalAmount').textContent = fmtJPY(allTotal);
+  document.getElementById('totalSub').textContent = '≈ ' + fmtTWD(allTotal);
+  const pct = Math.min(100, Math.round(allTotal/t.budget*100));
+  document.getElementById('budgetPct').textContent = pct + '%';
+  document.getElementById('progressFill').style.width = pct + '%';
+  const cont = document.getElementById('todayExpenses');
+  cont.innerHTML = todayExp.length ? [...todayExp].reverse().map(expenseHTML).join('') :
+    '<div class="empty"><div class="empty-icon">📝</div><div>今天還沒有花費記錄</div></div>';
+}
+
+function expenseHTML(e) {
+  const payer = memberOf(e.payer_id);
+  let pps = [];
+  if (e.split_mode==='payer') pps=[payer];
+  else if (e.split_mode==='custom') pps=Object.keys(e.participants||{}).map(id=>memberOf(id));
+  else pps=Object.entries(e.participants||{}).filter(([,v])=>v).map(([id])=>memberOf(id));
+  const avs = pps.slice(0,5).map(m=>'<div class="payer-av">'+m.emoji+'</div>').join('');
+  const splitLabel = e.split_mode==='payer'?'自付':e.split_mode==='custom'?'自訂':'平分 '+pps.length+'人';
+  return `<div class="expense-row" onclick="openEditModal('${e.id}')">
+    <div class="avatar">${payer.emoji}</div>
+    <div class="expense-info">
+      <div class="expense-name">${e.name}</div>
+      <div class="expense-tags">
+        <span class="tag tag-cat">${e.cat}</span>
+        <span class="tag tag-split">${splitLabel}</span>
+        <span class="tag-pay">${e.pay}</span>
+        ${e.store?'<span class="tag-store">'+e.store+'</span>':''}
+      </div>
+    </div>
+    <div class="expense-right">
+      <div class="amount-jpy">${fmtJPY(e.amount)}</div>
+      <div class="amount-twd">${fmtTWD(e.amount)}</div>
+      <div class="payer-avatars">${avs}</div>
+    </div>
+  </div>`;
+}
+
+// ─── RECORDS ──────────────────────────────────────────────────────────────────
+function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
+function renderRecords() {
+  const allTotal = state.expenses.reduce((a,e)=>a+e.amount,0);
+  document.getElementById('recTotalJPY').textContent = fmtJPY(allTotal);
+  document.getElementById('recTotalSub').textContent = '≈ '+fmtTWD(allTotal)+' · '+state.expenses.length+' 筆';
+  const cont = document.getElementById('recordsList');
+  if (!state.expenses.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>還沒有記錄</div></div>'; return; }
+  const sorted = [...state.expenses].sort((a,b)=>b.date.localeCompare(a.date));
+  const days = ['日','一','二','三','四','五','六'];
+  if (recTab==='date') {
+    const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
+    cont.innerHTML = Object.entries(byDate).map(([date,exps])=>{
+      const d=new Date(date+'T00:00:00'); const sum=exps.reduce((a,e)=>a+e.amount,0);
+      return '<div class="date-group"><div class="date-header"><span class="date-label">'+date+'（'+days[d.getDay()]+'）</span><span class="date-total">'+fmtJPY(sum)+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+    }).join('');
+  } else if (recTab==='cat') {
+    const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
+    cont.innerHTML = Object.entries(byCat).sort((a,b)=>b[1].reduce((s,e)=>s+e.amount,0)-a[1].reduce((s,e)=>s+e.amount,0)).map(([cat,exps])=>{
+      const sum=exps.reduce((a,e)=>a+e.amount,0);
+      return '<div class="date-group"><div class="date-header"><span class="date-label">'+cat+'</span><span class="date-total">'+fmtJPY(sum)+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+    }).join('');
+  } else {
+    cont.innerHTML = state.members.map(m=>{
+      const exps=sorted.filter(e=>e.payer_id===m.id);
+      if(!exps.length)return'';
+      const sum=exps.reduce((a,e)=>a+e.amount,0);
+      return '<div class="date-group"><div class="date-header"><span class="date-label">'+m.emoji+' '+m.name+'（付款）</span><span class="date-total">'+fmtJPY(sum)+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+    }).join('');
+  }
+}
+
+// ─── SPLIT ────────────────────────────────────────────────────────────────────
+function renderSplit() {
+  const net = calcBalances();
+  const settlements = calcSettlements({...net});
+  let balHtml = '<div class="split-summary-header"><span class="split-summary-title">💰 餘額總覽</span><span style="font-size:10px;color:var(--text2)">'+state.expenses.length+' 筆費用</span></div>';
+  balHtml += state.members.map(m=>{
+    const bal=net[m.id]||0;
+    const cls=bal>0.5?'pos':bal<-0.5?'neg':'zero';
+    const label=bal>0.5?'可收回':bal<-0.5?'需付出':'已結清';
+    const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+e.amount,0);
+    const owed=state.expenses.reduce((a,e)=>{const sh=getShares(e);return a+(sh[m.id]||0);},0);
+    return '<div class="member-balance-row"><div class="mb-avatar">'+m.emoji+'</div><div class="mb-info"><div class="mb-name">'+m.name+'</div><div class="mb-detail">付出 '+fmtJPY(paid)+' · 應付 '+fmtJPY(owed)+'</div></div><div style="text-align:right"><div class="mb-balance '+cls+'">'+(bal>=0?'+':'')+fmtJPY(bal)+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+label+'</div></div></div>';
+  }).join('');
+  const bw = document.getElementById('splitBalances'); bw.className='split-summary'; bw.innerHTML=balHtml;
+  document.getElementById('settleList').innerHTML = !settlements.length ?
+    '<div style="text-align:center;padding:26px;color:var(--text3)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:500">所有人已結清！</div></div>' :
+    settlements.map(t=>{const from=memberOf(t.from),to=memberOf(t.to);return '<div class="settle-row"><div class="settle-from"><div class="settle-av">'+from.emoji+'</div><div><div style="font-size:12px;font-weight:500">'+from.name+'</div><div class="settle-name">付款方</div></div></div><div class="settle-amt">'+fmtJPY(t.amount)+'</div><div class="settle-to"><div style="text-align:right"><div style="font-size:12px;font-weight:500">'+to.name+'</div><div class="settle-name">收款方</div></div><div class="settle-av">'+to.emoji+'</div></div></div>';}).join('');
+  document.getElementById('perMemberStats').innerHTML = state.members.map(m=>{
+    const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+e.amount,0);
+    const owed=state.expenses.reduce((a,e)=>{const sh=getShares(e);return a+(sh[m.id]||0);},0);
+    const partExps=state.expenses.filter(e=>{
+      if(e.split_mode==='payer')return e.payer_id===m.id;
+      if(e.split_mode==='custom')return(e.participants||{})[m.id]>0;
+      return Object.entries(e.participants||{}).some(([id,v])=>id===m.id&&v);
+    });
+    return '<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px"><div style="padding:9px 13px;display:flex;align-items:center;gap:9px;background:var(--bg)"><div style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border)">'+m.emoji+'</div><span style="font-size:13px;font-weight:600">'+m.name+'</span></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border)"><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+fmtJPY(paid)+'</div></div><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">應付金額</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+fmtJPY(owed)+'</div></div><div style="padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">參與筆數</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+partExps.length+' 筆</div></div></div></div>';
+  }).join('');
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+function renderStats(){renderTrend();renderDonut('catChart','catLegend',CATS,CAT_COLORS,'cat');renderDonut('payChart','payLegend',PAYS,PAY_COLORS,'pay');renderTop10();}
+function renderTrend(){const byDate={};state.expenses.forEach(e=>{byDate[e.date]=(byDate[e.date]||0)+e.amount;});const dates=Object.keys(byDate).sort();const ctx=document.getElementById('trendChart').getContext('2d');if(charts.trend)charts.trend.destroy();charts.trend=new Chart(ctx,{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'¥',data:dates.map(d=>byDate[d]),borderColor:'#E8682A',backgroundColor:'rgba(232,104,42,0.08)',tension:0.4,fill:true,pointBackgroundColor:'#E8682A',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#A09890'}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#A09890',callback:v=>'¥'+v.toLocaleString()}}}}});}
+function renderDonut(cid,lid,keys,colors,field){const totals={};state.expenses.forEach(e=>{totals[e[field]]=(totals[e[field]]||0)+e.amount;});const total=Object.values(totals).reduce((a,b)=>a+b,0)||1;const ctx=document.getElementById(cid).getContext('2d');if(cid==='catChart'&&charts.cat)charts.cat.destroy();if(cid==='payChart'&&charts.pay)charts.pay.destroy();const ch=new Chart(ctx,{type:'doughnut',data:{labels:keys,datasets:[{data:keys.map(k=>totals[k]||0),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});if(cid==='catChart')charts.cat=ch;else charts.pay=ch;document.getElementById(lid).innerHTML=keys.map((k,i)=>{const v=totals[k]||0;if(!v)return'';return'<div class="legend-row"><div class="legend-left"><div class="legend-dot" style="background:'+colors[i]+'"></div><span class="legend-label">'+k+'</span></div><div class="legend-right"><span class="legend-pct">'+Math.round(v/total*100)+'%</span><span class="legend-val">¥'+(v/1000).toFixed(1)+'k</span></div></div>';}).join('');}
+function renderTop10(){const sorted=[...state.expenses].sort((a,b)=>b.amount-a.amount).slice(0,10);const max=sorted[0]?.amount||1;document.getElementById('top10List').innerHTML=sorted.map((e,i)=>'<div class="top10-row"><span class="top10-rank '+(i<3?'top3':'')+'">'+(i+1)+'</span><div class="top10-bar-wrap"><div class="top10-name">'+e.name+(e.store?' · '+e.store:'')+'</div><div class="top10-bar"><div class="top10-bar-fill" style="width:'+Math.round(e.amount/max*100)+'%"></div></div></div><span class="top10-amt">'+fmtJPY(e.amount)+'</span></div>').join('');}
+
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function renderSettings() {
+  if (!state.trip) return;
+  const t = state.trip;
+  document.getElementById('settingTripName').value = t.name;
+  document.getElementById('settingStartDate').value = t.start_date;
+  document.getElementById('settingEndDate').value = t.end_date;
+  document.getElementById('settingBudget').value = t.budget;
+  document.getElementById('settingRate').value = t.rate;
+  document.getElementById('inviteCodeDisplay').textContent = t.invite_code || '------';
+  document.getElementById('apiKeyInput').value = state.apiKey;
+  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : '';
+  document.getElementById('memberList').innerHTML = state.members.map(m=>'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border)"><div style="width:32px;height:32px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:16px">'+m.emoji+'</div><span style="font-size:12px;flex:1">'+m.name+'</span>'+(m.id===state.myMemberId?'<span style="font-size:10px;color:var(--orange);background:var(--orange-light);padding:2px 7px;border-radius:20px">我</span>':'')+'</div>').join('');
+}
+async function saveTripSetting() {
+  if (!state.tripId) return;
+  const updates = {
+    name: document.getElementById('settingTripName').value,
+    start_date: document.getElementById('settingStartDate').value,
+    end_date: document.getElementById('settingEndDate').value,
+    budget: parseInt(document.getElementById('settingBudget').value) || 550000,
+    rate: parseFloat(document.getElementById('settingRate').value) || 0.206,
+  };
+  await sb.from('trips').update(updates).eq('id', state.tripId);
+  state.trip = {...state.trip, ...updates};
+  showToast('設定已儲存');
+}
+function saveApiKey() { state.apiKey = document.getElementById('apiKeyInput').value; localStorage.setItem('jpApiKey', state.apiKey); document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : ''; }
+function copyInviteCode() { navigator.clipboard.writeText(state.trip?.invite_code || '').then(()=>showToast('邀請碼已複製！')); }
+
+// ─── ADD/EDIT MODAL ───────────────────────────────────────────────────────────
+function openAddModal() {
+  state.editId = null;
+  state.selectedPayer = state.myMemberId || state.members[0]?.id;
+  state.selectedCat='餐飲'; state.selectedPay='現金'; state.splitMode='equal';
+  state.participants = {}; state.members.forEach(m=>{state.participants[m.id]=true;});
+  document.getElementById('modalTitle').textContent = '新增花費';
+  document.getElementById('mName').value = '';
+  document.getElementById('mAmt').value = '';
+  document.getElementById('mDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mStore').value = '';
+  renderModalSelects();
+  document.getElementById('addModal').classList.add('open');
+}
+function openEditModal(id) {
+  const e = state.expenses.find(x=>x.id===id); if(!e)return;
+  state.editId = id;
+  state.selectedPayer = e.payer_id;
+  state.selectedCat = e.cat; state.selectedPay = e.pay;
+  state.splitMode = e.split_mode || 'equal';
+  state.participants = {...(e.participants||{})};
+  document.getElementById('modalTitle').textContent = '編輯花費';
+  document.getElementById('mName').value = e.name;
+  document.getElementById('mAmt').value = e.amount;
+  document.getElementById('mDate').value = e.date;
+  document.getElementById('mStore').value = e.store||'';
+  renderModalSelects();
+  document.getElementById('addModal').classList.add('open');
+}
+function renderModalSelects() {
+  document.getElementById('modalPayerSelect').innerHTML = state.members.map(m=>'<div class="av-opt '+(m.id===state.selectedPayer?'sel':'')+'" onclick="selPayer(\''+m.id+'\')">'+m.emoji+'<div class="av-check">✓</div></div>').join('');
+  document.getElementById('catSelect').innerHTML = CATS.map(c=>'<button class="select-opt '+(c===state.selectedCat?'sel':'')+'" onclick="selCat(\''+c+'\')">'+c+'</button>').join('');
+  document.getElementById('paySelect').innerHTML = PAYS.map(p=>'<button class="select-opt '+(p===state.selectedPay?'sel':'')+'" onclick="selPay(\''+p+'\')">'+p+'</button>').join('');
+  document.querySelectorAll('.split-mode-btn').forEach((b,i)=>{const modes=['equal','custom','payer'];b.classList.toggle('active',modes[i]===state.splitMode);});
+  renderParticipants();
+}
+function selPayer(id){state.selectedPayer=id;renderModalSelects();}
+function selCat(c){state.selectedCat=c;renderModalSelects();}
+function selPay(p){state.selectedPay=p;renderModalSelects();}
+function setSplitMode(mode,btn){
+  state.splitMode=mode;
+  document.querySelectorAll('.split-mode-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+  if(mode==='equal'){state.members.forEach(m=>{if(!(m.id in state.participants))state.participants[m.id]=true;});}
+  else if(mode==='custom'){const amt=parseFloat(document.getElementById('mAmt').value)||0;const each=state.members.length?Math.round(amt/state.members.length):0;const p={};state.members.forEach(m=>{p[m.id]=each;});state.participants=p;}
+  else if(mode==='payer'){state.participants={};}
+  renderParticipants();
+}
+function onAmtChange(){if(state.splitMode==='custom')renderParticipants();}
+function renderParticipants(){
+  const amt=parseFloat(document.getElementById('mAmt').value)||0;
+  const cont=document.getElementById('participantList');
+  const checkEl=document.getElementById('splitTotalCheck');
+  if(state.splitMode==='payer'){cont.innerHTML='<div style="font-size:11px;color:var(--text2);padding:7px 0">此筆費用僅計入付款人，不分攤給其他人。</div>';checkEl.style.display='none';return;}
+  if(state.splitMode==='equal'){
+    const pp=Object.entries(state.participants).filter(([,v])=>v).map(([k])=>k);const each=pp.length?amt/pp.length:0;
+    cont.innerHTML=state.members.map(m=>{const checked=!!state.participants[m.id];return '<div class="participant-row"><div class="participant-check '+(checked?'checked':'')+'" onclick="togglePart(\''+m.id+'\')">'+( checked?'<svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polyline points="20,6 9,17 4,12"/></svg>':'')+'</div><div class="participant-av">'+m.emoji+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div style="font-size:11px;color:var(--text3);font-family:\'DM Mono\',monospace">'+(checked&&each>0?fmtJPY(each):'-')+'</div></div>';}).join('');
+    checkEl.style.display='none';return;
+  }
+  const customTotal=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const ok=Math.abs(customTotal-amt)<1;
+  cont.innerHTML=state.members.map(m=>{const val=state.participants[m.id]||0;return '<div class="participant-row"><div class="participant-av">'+m.emoji+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div class="participant-share"><input type="number" value="'+(val||'')+'" placeholder="0" min="0" oninput="setCustomShare(\''+m.id+'\',this.value)"></div></div>';}).join('');
+  checkEl.style.display='flex';
+  checkEl.className='split-total-check '+(ok?'ok':'err');
+  document.getElementById('splitTotalVal').textContent=fmtJPY(customTotal)+' / '+fmtJPY(amt);
+}
+function togglePart(id){state.participants[id]=!state.participants[id];renderParticipants();}
+function setCustomShare(id,val){state.participants[id]=parseFloat(val)||0;const amt=parseFloat(document.getElementById('mAmt').value)||0;const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);const ok=Math.abs(total-amt)<1;document.getElementById('splitTotalCheck').className='split-total-check '+(ok?'ok':'err');document.getElementById('splitTotalVal').textContent=fmtJPY(total)+' / '+fmtJPY(amt);}
+function closeModal(){document.getElementById('addModal').classList.remove('open');}
+
+async function saveExpense() {
+  const name=document.getElementById('mName').value.trim();
+  const amt=parseFloat(document.getElementById('mAmt').value);
+  const date=document.getElementById('mDate').value;
+  if(!name||!amt||!date){showToast('請填寫必要欄位');return;}
+  if(state.splitMode==='custom'){const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);if(Math.abs(total-amt)>1){showToast('自訂分攤金額總和需等於費用金額');return;}}
+  if(state.splitMode==='equal'&&!Object.values(state.participants).some(v=>v)){showToast('請至少選擇一位分攤成員');return;}
+  const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='儲存中...';
+  setSyncDot('syncing');
+  try {
+    const exp = {
+      name, amount:amt, date,
+      cat:state.selectedCat, pay:state.selectedPay,
+      store:document.getElementById('mStore').value.trim(),
+      payer_id:state.selectedPayer,
+      split_mode:state.splitMode,
+      participants:state.participants,
+      trip_id:state.tripId,
+    };
+    if (state.editId) {
+      await sb.from('expenses').update(exp).eq('id', state.editId);
+    } else {
+      exp.id = 'exp_' + Date.now();
+      await sb.from('expenses').insert(exp);
+    }
+    await loadAll();
+    setSyncDot('');
+    closeModal();
+    const cur=document.querySelector('.page.active')?.id;
+    if(cur==='page-home')renderHome();
+    else if(cur==='page-records')renderRecords();
+    else if(cur==='page-split')renderSplit();
+    showToast(state.editId?'已更新':'已儲存');
+  } catch(e) { showToast('儲存失敗：'+e.message); setSyncDot('error'); }
+  btn.disabled=false; btn.textContent='儲存';
+}
+
+// ─── SCAN ─────────────────────────────────────────────────────────────────────
+function handleDrop(e){e.preventDefault();document.getElementById('scanArea').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleFile(f);}
+async function handleFile(file){
+  if(!file)return;
+  const area=document.getElementById('scanArea'),result=document.getElementById('scanResult');
+  area.innerHTML='<img src="'+URL.createObjectURL(file)+'" class="preview-img">';
+  result.innerHTML='<div class="loading-bar"><div class="loading-text"><span class="btn-spinner"></span>AI 正在辨識收據...</div></div>';
+  if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
+  try{
+    const b64=await toBase64(file);const mtype=file.type||'image/jpeg';
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:'你是日本收據辨識助理。分析收據圖片，只回傳JSON不要其他文字：{"store_name_zh":"店名繁中","store_name_ja":"日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文","price":數字,"tax_rate":8或10,"quantity":數字}],"total":總金額}'}]}]})});
+    const data=await resp.json();if(data.error)throw new Error(data.error.message);
+    showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
+  }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
+}
+function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
+let pendingReceipt=null;
+function showReceiptResult(data){
+  pendingReceipt=data;
+  document.getElementById('scanResult').innerHTML='<div class="result-card"><div class="result-header"><div><div class="store-name">'+data.store_name_zh+'</div><div class="store-original">'+data.store_name_ja+'</div></div><div class="result-date">'+data.date+'</div></div><div class="items-header"><span class="items-title">購買明細</span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>'+data.items.map((it,i)=>'<div class="result-item"><div class="item-num">'+(i+1)+'</div><div class="item-info"><div class="item-name">'+it.name_zh+'</div><div class="item-sub">'+it.name_ja+' · '+(it.quantity||1)+'x ¥'+it.price+'</div></div><div class="item-price">¥'+((it.quantity||1)*it.price).toLocaleString()+'</div></div>').join('')+'<button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存 ('+data.items.length+' 筆)</button><div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div></div>';
+}
+function addItemToReceipt(){if(!pendingReceipt)return;const name=prompt('品項名稱：');if(!name)return;const price=parseInt(prompt('金額（日圓）：')||0);if(!price)return;pendingReceipt.items.push({name_zh:name,name_ja:name,price,quantity:1,tax_rate:10});showReceiptResult(pendingReceipt);}
+async function saveReceiptExpenses(){
+  if(!pendingReceipt||!pendingReceipt.items.length)return;
+  const payerId=state.myMemberId||state.members[0]?.id;
+  const defPart=state.members.reduce((a,m)=>({...a,[m.id]:true}),{});
+  const inserts=pendingReceipt.items.map(it=>({id:'exp_'+Date.now()+Math.random(),name:it.name_zh,amount:(it.quantity||1)*it.price,date:pendingReceipt.date,cat:'購物',pay:'現金',store:pendingReceipt.store_name_zh,payer_id:payerId,split_mode:'equal',participants:{...defPart},trip_id:state.tripId}));
+  await sb.from('expenses').insert(inserts);
+  await loadAll();
+  pendingReceipt=null;
+  document.getElementById('scanArea').innerHTML='<div class="scan-icon">📷</div><div class="scan-title">點擊上傳收據</div><div class="scan-sub">支援 JPG、PNG</div>';
+  document.getElementById('scanArea').onclick=()=>document.getElementById('fileInput').click();
+  document.getElementById('scanResult').innerHTML='';
+  showToast('收據已儲存並同步！');
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
