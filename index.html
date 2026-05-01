@@ -197,6 +197,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .av-opt .av-check{position:absolute;bottom:-2px;right:-2px;width:13px;height:13px;border-radius:50%;background:var(--orange);display:none;align-items:center;justify-content:center;font-size:8px;color:white;border:1.5px solid white}
 .av-opt.sel .av-check{display:flex}
 /* SPLIT MODAL */
+/* CURRENCY BTN */
+.currency-btn{padding:6px 10px;font-size:11px;font-weight:500;border:none;background:transparent;border-radius:6px;cursor:pointer;font-family:inherit;color:var(--text2);transition:all .15s;white-space:nowrap}
+.currency-btn.active{background:var(--surface);color:var(--orange);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+/* AVATAR PHOTO */
+.avatar-img{width:100%;height:100%;object-fit:cover;border-radius:50%}
 .split-mode-toggle{display:flex;background:var(--bg);border-radius:8px;padding:3px;margin-bottom:11px}
 .split-mode-btn{flex:1;padding:6px;text-align:center;font-size:11px;font-weight:500;border:none;background:transparent;border-radius:6px;cursor:pointer;font-family:inherit;color:var(--text2);transition:all .15s}
 .split-mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08)}
@@ -380,6 +385,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div style="font-size:13px;font-weight:600;margin-bottom:10px">旅行成員</div>
     <div id="memberList"></div>
   </div>
+  <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this.files[0])">
+  <input type="file" id="avatarCamInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <div class="card">
     <div style="font-size:12px;font-weight:600;margin-bottom:3px">Anthropic API Key</div>
     <div style="font-size:10px;color:var(--text2);margin-bottom:8px">用於 AI 辨識收據（僅存本機）</div>
@@ -399,13 +406,40 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div class="modal-title" id="modalTitle">新增花費</div>
     <div class="form-group"><label class="form-label">付款人（誰出錢）</label><div class="avatar-select" id="modalPayerSelect"></div></div>
     <div class="form-group"><label class="form-label">消費項目</label><input class="form-input" id="mName" placeholder="例：咖啡、麵包"></div>
-    <div class="form-row">
-      <div class="form-group"><label class="form-label">金額（日圓）</label><input class="form-input" id="mAmt" type="number" placeholder="0" oninput="onAmtChange()"></div>
-      <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="mDate" type="date"></div>
+    <!-- 金額 + 幣別 -->
+    <div class="form-group">
+      <label class="form-label">金額</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;background:var(--bg);border-radius:8px;padding:3px;flex-shrink:0">
+          <button class="currency-btn active" id="currJPY" onclick="setCurrency('JPY')">¥ 日圓</button>
+          <button class="currency-btn" id="currTWD" onclick="setCurrency('TWD')">$ 台幣</button>
+        </div>
+        <input class="form-input" id="mAmt" type="number" placeholder="0" oninput="onAmtChange()" style="flex:1">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:5px" id="amtConvert"></div>
     </div>
+    <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="mDate" type="date"></div>
     <div class="form-group"><label class="form-label">類別</label><div class="select-grid" id="catSelect"></div></div>
     <div class="form-group"><label class="form-label">支付方式</label><div class="select-grid" id="paySelect"></div></div>
     <div class="form-group"><label class="form-label">店家（選填）</label><input class="form-input" id="mStore" placeholder="例：7-Eleven"></div>
+    <!-- 拍照附件 -->
+    <div class="form-group">
+      <label class="form-label">附上照片（選填）</label>
+      <div id="photoPreviewWrap" style="display:none;margin-bottom:8px;position:relative">
+        <img id="photoPreview" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)">
+        <button onclick="clearPhoto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">✕</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById('photoFileInput').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>選擇照片
+        </button>
+        <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById('photoCamInput').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>拍照
+        </button>
+      </div>
+      <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this.files[0])">
+      <input type="file" id="photoCamInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelect(this.files[0])">
+    </div>
     <div style="border-top:1px solid var(--border);padding-top:11px;margin-top:3px">
       <label class="form-label" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">💰 費用分攤</label>
       <div class="split-mode-toggle">
@@ -448,6 +482,9 @@ let state = {
   editId: null,
   selectedPayer: null, selectedCat: '餐飲', selectedPay: '現金',
   splitMode: 'equal', participants: {},
+  currency: 'JPY',   // 'JPY' | 'TWD'
+  pendingPhotoBase64: null,
+  pendingPhotoUrl: null,
 };
 let charts = {trend:null,cat:null,pay:null};
 let recTab = 'date';
@@ -669,17 +706,30 @@ function subscribeRealtime() {
 const memberOf = id => state.members.find(m=>m.id===id) || {emoji:'👤',name:'?',id};
 const fmtJPY = n => '¥' + Math.round(n).toLocaleString();
 const fmtTWD = n => 'NT$' + Math.round(n * (state.trip?.rate || 0.206)).toLocaleString();
+// 取得台幣金額（優先用已存的 amount_twd，否則換算）
+const toTWD = e => e.amount_twd || (e.currency==='TWD' ? e.amount : Math.round(e.amount * (state.trip?.rate||0.206)));
+const memberAvatar = (m) => m.avatar_url
+  ? `<img src="${m.avatar_url}" class="avatar-img" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`+`<span style="display:none">${m.emoji}</span>`
+  : m.emoji;
 
 function getShares(exp) {
   const shares = {};
-  if (exp.split_mode==='payer') { shares[exp.payer_id] = exp.amount; return shares; }
+  const baseAmt = toTWD(exp); // 統一用台幣計算分攤
+  if (exp.split_mode==='payer') { shares[exp.payer_id] = baseAmt; return shares; }
   if (exp.split_mode==='custom') {
-    Object.entries(exp.participants||{}).forEach(([mid,amt])=>{ if(amt>0) shares[mid]=(shares[mid]||0)+amt; });
+    // custom 分攤金額是原始幣別，需換算成台幣
+    const rate = state.trip?.rate || 0.206;
+    Object.entries(exp.participants||{}).forEach(([mid,amt])=>{
+      if(amt>0) {
+        const twdAmt = exp.currency==='TWD' ? amt : Math.round(amt*rate);
+        shares[mid]=(shares[mid]||0)+twdAmt;
+      }
+    });
     return shares;
   }
   const pp = Object.entries(exp.participants||{}).filter(([,v])=>v).map(([k])=>k);
-  if (!pp.length) { shares[exp.payer_id]=exp.amount; return shares; }
-  const each = exp.amount / pp.length;
+  if (!pp.length) { shares[exp.payer_id]=baseAmt; return shares; }
+  const each = baseAmt / pp.length;
   pp.forEach(mid => shares[mid] = (shares[mid]||0) + each);
   return shares;
 }
@@ -689,8 +739,8 @@ function calcBalances() {
   state.members.forEach(m => net[m.id] = 0);
   state.expenses.forEach(exp => {
     if (!(exp.payer_id in net)) net[exp.payer_id] = 0;
-    net[exp.payer_id] += exp.amount;
-    const shares = getShares(exp);
+    net[exp.payer_id] += toTWD(exp); // 付款人 +台幣金額
+    const shares = getShares(exp);   // shares 已是台幣
     Object.entries(shares).forEach(([mid,amt]) => { if(!(mid in net))net[mid]=0; net[mid]-=amt; });
   });
   return net;
@@ -735,13 +785,14 @@ function renderHome() {
   document.getElementById('dayNum').textContent = 'Day ' + day;
   document.getElementById('daySub').textContent = '共 ' + total + ' 天';
   const todayExp = state.expenses.filter(e=>e.date===today);
-  const allTotal = state.expenses.reduce((a,e)=>a+e.amount,0);
-  const todayTotal = todayExp.reduce((a,e)=>a+e.amount,0);
-  document.getElementById('todayAmount').textContent = fmtJPY(todayTotal);
-  document.getElementById('todaySub').textContent = '≈ ' + fmtTWD(todayTotal);
-  document.getElementById('totalAmount').textContent = fmtJPY(allTotal);
-  document.getElementById('totalSub').textContent = '≈ ' + fmtTWD(allTotal);
-  const pct = Math.min(100, Math.round(allTotal/t.budget*100));
+  const allTotalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const todayTotalTWD = todayExp.reduce((a,e)=>a+toTWD(e),0);
+  document.getElementById('todayAmount').textContent = `NT$${Math.round(todayTotalTWD).toLocaleString()}`;
+  document.getElementById('todaySub').textContent = `${todayExp.length} 筆`;
+  document.getElementById('totalAmount').textContent = `NT$${Math.round(allTotalTWD).toLocaleString()}`;
+  document.getElementById('totalSub').textContent = `共 ${state.expenses.length} 筆`;
+  const budget_twd = (state.trip?.budget||550000) * (state.trip?.rate||0.206);
+  const pct = Math.min(100, Math.round(allTotalTWD / budget_twd * 100));
   document.getElementById('budgetPct').textContent = pct + '%';
   document.getElementById('progressFill').style.width = pct + '%';
   const cont = document.getElementById('todayExpenses');
@@ -755,10 +806,20 @@ function expenseHTML(e) {
   if (e.split_mode==='payer') pps=[payer];
   else if (e.split_mode==='custom') pps=Object.keys(e.participants||{}).map(id=>memberOf(id));
   else pps=Object.entries(e.participants||{}).filter(([,v])=>v).map(([id])=>memberOf(id));
-  const avs = pps.slice(0,5).map(m=>'<div class="payer-av">'+m.emoji+'</div>').join('');
+  const avs = pps.slice(0,5).map(m=>`<div class="payer-av">${memberAvatar(m)}</div>`).join('');
   const splitLabel = e.split_mode==='payer'?'自付':e.split_mode==='custom'?'自訂':'平分 '+pps.length+'人';
+  // 主要金額：顯示原始幣別
+  const dispAmt = e.currency==='TWD'
+    ? `NT$${Math.round(e.amount).toLocaleString()}`
+    : fmtJPY(e.amount);
+  // 次要金額：統一顯示台幣
+  const twdAmt = toTWD(e);
+  const subAmt = e.currency==='TWD'
+    ? `（直接台幣）`
+    : `≈ NT$${Math.round(twdAmt).toLocaleString()}`;
+  const photoBtn = e.photo_url ? `<div style="margin-top:5px"><img src="${e.photo_url}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="event.stopPropagation();showPhotoModal('${e.photo_url}')"></div>` : '';
   return `<div class="expense-row" onclick="openEditModal('${e.id}')">
-    <div class="avatar">${payer.emoji}</div>
+    <div class="avatar" style="overflow:hidden">${memberAvatar(payer)}</div>
     <div class="expense-info">
       <div class="expense-name">${e.name}</div>
       <div class="expense-tags">
@@ -767,10 +828,11 @@ function expenseHTML(e) {
         <span class="tag-pay">${e.pay}</span>
         ${e.store?'<span class="tag-store">'+e.store+'</span>':''}
       </div>
+      ${photoBtn}
     </div>
     <div class="expense-right">
-      <div class="amount-jpy">${fmtJPY(e.amount)}</div>
-      <div class="amount-twd">${fmtTWD(e.amount)}</div>
+      <div class="amount-jpy">${dispAmt}</div>
+      <div class="amount-twd">${subAmt}</div>
       <div class="payer-avatars">${avs}</div>
     </div>
   </div>`;
@@ -779,9 +841,9 @@ function expenseHTML(e) {
 // ─── RECORDS ──────────────────────────────────────────────────────────────────
 function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
 function renderRecords() {
-  const allTotal = state.expenses.reduce((a,e)=>a+e.amount,0);
-  document.getElementById('recTotalJPY').textContent = fmtJPY(allTotal);
-  document.getElementById('recTotalSub').textContent = '≈ '+fmtTWD(allTotal)+' · '+state.expenses.length+' 筆';
+  const allTotalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  document.getElementById('recTotalJPY').textContent = `NT$${Math.round(allTotalTWD).toLocaleString()}`;
+  document.getElementById('recTotalSub').textContent = `台幣總計 · ${state.expenses.length} 筆`;
   const cont = document.getElementById('recordsList');
   if (!state.expenses.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>還沒有記錄</div></div>'; return; }
   const sorted = [...state.expenses].sort((a,b)=>b.date.localeCompare(a.date));
@@ -812,28 +874,28 @@ function renderRecords() {
 function renderSplit() {
   const net = calcBalances();
   const settlements = calcSettlements({...net});
-  let balHtml = '<div class="split-summary-header"><span class="split-summary-title">💰 餘額總覽</span><span style="font-size:10px;color:var(--text2)">'+state.expenses.length+' 筆費用</span></div>';
+  let balHtml = '<div class="split-summary-header"><span class="split-summary-title">💰 餘額總覽（台幣）</span><span style="font-size:10px;color:var(--text2)">'+state.expenses.length+' 筆費用</span></div>';
   balHtml += state.members.map(m=>{
     const bal=net[m.id]||0;
     const cls=bal>0.5?'pos':bal<-0.5?'neg':'zero';
     const label=bal>0.5?'可收回':bal<-0.5?'需付出':'已結清';
-    const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+e.amount,0);
+    const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+toTWD(e),0);
     const owed=state.expenses.reduce((a,e)=>{const sh=getShares(e);return a+(sh[m.id]||0);},0);
-    return '<div class="member-balance-row"><div class="mb-avatar">'+m.emoji+'</div><div class="mb-info"><div class="mb-name">'+m.name+'</div><div class="mb-detail">付出 '+fmtJPY(paid)+' · 應付 '+fmtJPY(owed)+'</div></div><div style="text-align:right"><div class="mb-balance '+cls+'">'+(bal>=0?'+':'')+fmtJPY(bal)+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+label+'</div></div></div>';
+    return '<div class="member-balance-row"><div class="mb-avatar">'+memberAvatar(m)+'</div><div class="mb-info"><div class="mb-name">'+m.name+'</div><div class="mb-detail">付出 NT$'+Math.round(paid).toLocaleString()+' · 應付 NT$'+Math.round(owed).toLocaleString()+'</div></div><div style="text-align:right"><div class="mb-balance '+cls+'">'+(bal>=0?'+':'')+'NT$'+Math.round(Math.abs(bal)).toLocaleString()+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+label+'</div></div></div>';
   }).join('');
   const bw = document.getElementById('splitBalances'); bw.className='split-summary'; bw.innerHTML=balHtml;
   document.getElementById('settleList').innerHTML = !settlements.length ?
     '<div style="text-align:center;padding:26px;color:var(--text3)"><div style="font-size:28px;margin-bottom:6px">✅</div><div style="font-size:13px;font-weight:500">所有人已結清！</div></div>' :
-    settlements.map(t=>{const from=memberOf(t.from),to=memberOf(t.to);return '<div class="settle-row"><div class="settle-from"><div class="settle-av">'+from.emoji+'</div><div><div style="font-size:12px;font-weight:500">'+from.name+'</div><div class="settle-name">付款方</div></div></div><div class="settle-amt">'+fmtJPY(t.amount)+'</div><div class="settle-to"><div style="text-align:right"><div style="font-size:12px;font-weight:500">'+to.name+'</div><div class="settle-name">收款方</div></div><div class="settle-av">'+to.emoji+'</div></div></div>';}).join('');
+    settlements.map(t=>{const from=memberOf(t.from),to=memberOf(t.to);return '<div class="settle-row"><div class="settle-from"><div class="settle-av">'+memberAvatar(from)+'</div><div><div style="font-size:12px;font-weight:500">'+from.name+'</div><div class="settle-name">付款方</div></div></div><div class="settle-amt">NT$'+Math.round(t.amount).toLocaleString()+'</div><div class="settle-to"><div style="text-align:right"><div style="font-size:12px;font-weight:500">'+to.name+'</div><div class="settle-name">收款方</div></div><div class="settle-av">'+memberAvatar(to)+'</div></div></div>';}).join('');
   document.getElementById('perMemberStats').innerHTML = state.members.map(m=>{
-    const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+e.amount,0);
+    const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+toTWD(e),0);
     const owed=state.expenses.reduce((a,e)=>{const sh=getShares(e);return a+(sh[m.id]||0);},0);
     const partExps=state.expenses.filter(e=>{
       if(e.split_mode==='payer')return e.payer_id===m.id;
       if(e.split_mode==='custom')return(e.participants||{})[m.id]>0;
       return Object.entries(e.participants||{}).some(([id,v])=>id===m.id&&v);
     });
-    return '<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px"><div style="padding:9px 13px;display:flex;align-items:center;gap:9px;background:var(--bg)"><div style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border)">'+m.emoji+'</div><span style="font-size:13px;font-weight:600">'+m.name+'</span></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border)"><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+fmtJPY(paid)+'</div></div><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">應付金額</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+fmtJPY(owed)+'</div></div><div style="padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">參與筆數</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+partExps.length+' 筆</div></div></div></div>';
+    return '<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px"><div style="padding:9px 13px;display:flex;align-items:center;gap:9px;background:var(--bg)"><div style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border);overflow:hidden">'+memberAvatar(m)+'</div><span style="font-size:13px;font-weight:600">'+m.name+'</span></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border)"><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">NT$'+Math.round(paid).toLocaleString()+'</div></div><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">應付金額</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">NT$'+Math.round(owed).toLocaleString()+'</div></div><div style="padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">參與筆數</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+partExps.length+' 筆</div></div></div></div>';
   }).join('');
 }
 
@@ -855,7 +917,18 @@ function renderSettings() {
   document.getElementById('inviteCodeDisplay').textContent = t.invite_code || '------';
   document.getElementById('apiKeyInput').value = state.apiKey;
   document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : '';
-  document.getElementById('memberList').innerHTML = state.members.map(m=>'<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border)"><div style="width:32px;height:32px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:16px">'+m.emoji+'</div><span style="font-size:12px;flex:1">'+m.name+'</span>'+(m.id===state.myMemberId?'<span style="font-size:10px;color:var(--orange);background:var(--orange-light);padding:2px 7px;border-radius:20px">我</span>':'')+'</div>').join('');
+  document.getElementById('memberList').innerHTML = state.members.map(m => {
+    const isMe = m.id === state.myMemberId;
+    const avContent = m.avatar_url
+      ? `<img src="${m.avatar_url}" class="avatar-img" style="border-radius:50%;width:36px;height:36px;object-fit:cover">`
+      : `<span style="font-size:18px">${m.emoji}</span>`;
+    return `<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)">
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid var(--border);flex-shrink:0">${avContent}</div>
+      <span style="font-size:12px;flex:1">${m.name}</span>
+      ${isMe ? `<span style="font-size:10px;color:var(--orange);background:var(--orange-light);padding:2px 7px;border-radius:20px">我</span>
+        <button onclick="openAvatarPicker()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:var(--text2)">換頭像</button>` : ''}
+    </div>`;
+  }).join('');
 }
 async function saveTripSetting() {
   if (!state.tripId) return;
@@ -879,12 +952,16 @@ function openAddModal() {
   state.selectedPayer = state.myMemberId || state.members[0]?.id;
   state.selectedCat='餐飲'; state.selectedPay='現金'; state.splitMode='equal';
   state.participants = {}; state.members.forEach(m=>{state.participants[m.id]=true;});
+  state.currency = 'JPY'; state.pendingPhotoBase64 = null; state.pendingPhotoUrl = null;
   document.getElementById('modalTitle').textContent = '新增花費';
   document.getElementById('mName').value = '';
   document.getElementById('mAmt').value = '';
   document.getElementById('mDate').value = new Date().toISOString().split('T')[0];
   document.getElementById('mStore').value = '';
+  document.getElementById('amtConvert').textContent = '';
+  document.getElementById('photoPreviewWrap').style.display = 'none';
   renderModalSelects();
+  setCurrency('JPY');
   document.getElementById('addModal').classList.add('open');
 }
 function openEditModal(id) {
@@ -894,12 +971,23 @@ function openEditModal(id) {
   state.selectedCat = e.cat; state.selectedPay = e.pay;
   state.splitMode = e.split_mode || 'equal';
   state.participants = {...(e.participants||{})};
+  state.currency = e.currency || 'JPY';
+  state.pendingPhotoBase64 = null;
+  state.pendingPhotoUrl = e.photo_url || null;
   document.getElementById('modalTitle').textContent = '編輯花費';
   document.getElementById('mName').value = e.name;
-  document.getElementById('mAmt').value = e.amount;
+  document.getElementById('mAmt').value = e.currency==='TWD' ? (e.amount_original||e.amount) : e.amount;
   document.getElementById('mDate').value = e.date;
   document.getElementById('mStore').value = e.store||'';
+  // photo preview
+  if (e.photo_url) {
+    document.getElementById('photoPreview').src = e.photo_url;
+    document.getElementById('photoPreviewWrap').style.display = 'block';
+  } else {
+    document.getElementById('photoPreviewWrap').style.display = 'none';
+  }
   renderModalSelects();
+  setCurrency(state.currency);
   document.getElementById('addModal').classList.add('open');
 }
 function renderModalSelects() {
@@ -944,22 +1032,32 @@ function closeModal(){document.getElementById('addModal').classList.remove('open
 
 async function saveExpense() {
   const name=document.getElementById('mName').value.trim();
-  const amt=parseFloat(document.getElementById('mAmt').value);
+  const rawAmt=parseFloat(document.getElementById('mAmt').value);
   const date=document.getElementById('mDate').value;
-  if(!name||!amt||!date){showToast('請填寫必要欄位');return;}
-  if(state.splitMode==='custom'){const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);if(Math.abs(total-amt)>1){showToast('自訂分攤金額總和需等於費用金額');return;}}
+  if(!name||!rawAmt||!date){showToast('請填寫必要欄位');return;}
+  const rate = state.trip?.rate || 0.206;
+  // amount 永遠存原始幣別金額，amount_twd 統一換算台幣供分攤用
+  const amountTWD = state.currency==='TWD' ? rawAmt : Math.round(rawAmt * rate);
+  if(state.splitMode==='custom'){const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);if(Math.abs(total-rawAmt)>1){showToast('自訂分攤金額需等於費用金額');return;}}
   if(state.splitMode==='equal'&&!Object.values(state.participants).some(v=>v)){showToast('請至少選擇一位分攤成員');return;}
   const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='儲存中...';
   setSyncDot('syncing');
   try {
+    const photoUrl = state.pendingPhotoBase64 || state.pendingPhotoUrl || null;
     const exp = {
-      name, amount:amt, date,
+      name,
+      amount: rawAmt,          // 原始金額（日圓或台幣）
+      amount_original: rawAmt, // 同上，備用
+      amount_twd: amountTWD,   // 統一台幣，供分攤/統計用
+      date,
       cat:state.selectedCat, pay:state.selectedPay,
       store:document.getElementById('mStore').value.trim(),
       payer_id:state.selectedPayer,
       split_mode:state.splitMode,
       participants:state.participants,
       trip_id:state.tripId,
+      currency: state.currency,
+      photo_url: photoUrl,
     };
     if (state.editId) {
       await sb.from('expenses').update(exp).eq('id', state.editId);
@@ -1017,6 +1115,94 @@ async function saveReceiptExpenses(){
 
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+// ─── CURRENCY ─────────────────────────────────────────────────────────────────
+function setCurrency(cur) {
+  state.currency = cur;
+  document.getElementById('currJPY').classList.toggle('active', cur==='JPY');
+  document.getElementById('currTWD').classList.toggle('active', cur==='TWD');
+  onAmtChange();
+}
+function onAmtChange() {
+  const raw = parseFloat(document.getElementById('mAmt').value) || 0;
+  const rate = state.trip?.rate || 0.206;
+  const conv = document.getElementById('amtConvert');
+  if (!raw) { conv.textContent = ''; return; }
+  if (state.splitMode === 'custom') renderParticipants();
+  if (state.currency === 'TWD') {
+    const jpy = Math.round(raw / rate);
+    conv.textContent = `≈ ¥${jpy.toLocaleString()} 日圓`;
+  } else {
+    conv.textContent = `≈ NT$${Math.round(raw * rate).toLocaleString()} 台幣`;
+  }
+}
+
+// ─── PHOTO (expense) ──────────────────────────────────────────────────────────
+function handlePhotoSelect(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    state.pendingPhotoBase64 = e.target.result;
+    document.getElementById('photoPreview').src = e.target.result;
+    document.getElementById('photoPreviewWrap').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+function clearPhoto() {
+  state.pendingPhotoBase64 = null;
+  state.pendingPhotoUrl = null;
+  document.getElementById('photoPreviewWrap').style.display = 'none';
+  document.getElementById('photoPreview').src = '';
+}
+
+// ─── AVATAR (member) ──────────────────────────────────────────────────────────
+function openAvatarPicker() {
+  // Show a small modal asking camera or gallery
+  const choice = confirm('要拍照嗎？\n確定 = 開啟相機\n取消 = 從相簿選取');
+  if (choice) document.getElementById('avatarCamInput').click();
+  else document.getElementById('avatarFileInput').click();
+}
+async function handleAvatarUpload(file) {
+  if (!file || !state.myMemberId) return;
+  showToast('上傳中...');
+  // Compress to base64, store as data URL in members table (simple approach, no storage bucket needed)
+  const reader = new FileReader();
+  reader.onload = async e => {
+    // Resize to 200x200
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const size = 200;
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      // Crop center
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      await sb.from('members').update({ avatar_url: dataUrl }).eq('id', state.myMemberId);
+      // Update local state
+      const m = state.members.find(x => x.id === state.myMemberId);
+      if (m) m.avatar_url = dataUrl;
+      renderSettings();
+      showToast('頭像已更新！');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── PHOTO MODAL ──────────────────────────────────────────────────────────────
+function showPhotoModal(url) {
+  const backdrop = document.createElement('div');
+  backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px';
+  backdrop.onclick = () => backdrop.remove();
+  const img = document.createElement('img');
+  img.src = url;
+  img.style.cssText = 'max-width:100%;max-height:90vh;border-radius:10px;object-fit:contain';
+  backdrop.appendChild(img);
+  document.body.appendChild(backdrop);
+}
 
 // ─── START ────────────────────────────────────────────────────────────────────
 init();
