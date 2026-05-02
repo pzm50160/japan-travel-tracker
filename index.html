@@ -248,7 +248,35 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 
   <!-- Create Trip Form -->
   <div id="createTripForm" style="display:none;margin-top:16px">
-    <div style="font-size:14px;font-weight:600;margin-bottom:12px">建立新旅程</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">✈️ 建立新旅程</div>
+
+    <!-- 個人資料 -->
+    <div style="background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--orange);margin-bottom:10px">👤 我的資料</div>
+      <!-- 頭像選擇 -->
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="form-label">頭像</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="createAvatarPreview" style="width:60px;height:60px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;overflow:hidden;cursor:pointer" onclick="openCreateAvatarMenu()">😊</div>
+          <div style="flex:1">
+            <div style="display:flex;gap:7px;flex-wrap:wrap" id="createEmojiPicker"></div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('createPhotoFile').click()">📁 相簿</button>
+              <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('createPhotoCam').click()">📷 拍照</button>
+            </div>
+          </div>
+        </div>
+        <input type="file" id="createPhotoFile" accept="image/*" style="display:none" onchange="handleCreateAvatar(this.files[0])">
+        <input type="file" id="createPhotoCam" accept="image/*" capture="user" style="display:none" onchange="handleCreateAvatar(this.files[0])">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">你的名字</label>
+        <input class="form-input" id="newMemberName" placeholder="小美">
+      </div>
+    </div>
+
+    <!-- 旅程資訊 -->
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">🗓 旅程資訊</div>
     <div class="form-group"><label class="form-label">旅程名稱</label><input class="form-input" id="newTripName" placeholder="日本中部北陸之旅"></div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">出發日期</label><input class="form-input" id="newTripStart" type="date"></div>
@@ -258,23 +286,54 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       <div class="form-group"><label class="form-label">總預算（日圓）</label><input class="form-input" id="newTripBudget" type="number" placeholder="550000"></div>
       <div class="form-group"><label class="form-label">匯率 1JPY=TWD</label><input class="form-input" id="newTripRate" type="number" step="0.001" placeholder="0.206"></div>
     </div>
-    <div class="form-group"><label class="form-label">你的名字</label><input class="form-input" id="newMemberName" placeholder="小美"></div>
-    <div class="form-group"><label class="form-label">選頭像</label><div style="display:flex;gap:8px;flex-wrap:wrap" id="createEmojiPicker"></div></div>
+    <div class="form-group">
+      <label class="form-label">預計旅伴人數（含自己）</label>
+      <div style="display:flex;gap:8px" id="memberCountSelect">
+        <button class="select-opt sel" onclick="selMemberCount(this,1)">1人</button>
+        <button class="select-opt" onclick="selMemberCount(this,2)">2人</button>
+        <button class="select-opt" onclick="selMemberCount(this,3)">3人</button>
+        <button class="select-opt" onclick="selMemberCount(this,4)">4人</button>
+        <button class="select-opt" onclick="selMemberCount(this,5)">5人+</button>
+      </div>
+    </div>
     <div class="btn-row">
       <button class="btn-cancel" onclick="document.getElementById('createTripForm').style.display='none'">取消</button>
-      <button class="btn-save" id="createTripBtn" onclick="createTrip()">建立旅程</button>
+      <button class="btn-save" id="createTripBtn" onclick="createTrip()">建立旅程 →</button>
     </div>
   </div>
 
   <!-- Join Trip Form -->
   <div id="joinTripForm" style="display:none;margin-top:16px">
-    <div style="font-size:14px;font-weight:600;margin-bottom:12px">加入旅程</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px">🔗 加入旅程</div>
     <div class="form-group"><label class="form-label">邀請碼（6位數）</label><input class="form-input" id="joinCode" placeholder="ABC123" style="letter-spacing:3px;font-family:'DM Mono',monospace;font-size:18px;text-transform:uppercase"></div>
-    <div class="form-group"><label class="form-label">你的名字</label><input class="form-input" id="joinMemberName" placeholder="小明"></div>
-    <div class="form-group"><label class="form-label">選頭像</label><div style="display:flex;gap:8px;flex-wrap:wrap" id="joinEmojiPicker"></div></div>
+
+    <!-- 個人資料 -->
+    <div style="background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--orange);margin-bottom:10px">👤 我的資料</div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label class="form-label">頭像</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div id="joinAvatarPreview" style="width:60px;height:60px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;overflow:hidden;cursor:pointer" onclick="openJoinAvatarMenu()">😊</div>
+          <div style="flex:1">
+            <div style="display:flex;gap:7px;flex-wrap:wrap" id="joinEmojiPicker"></div>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('joinPhotoFile').click()">📁 相簿</button>
+              <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('joinPhotoCam').click()">📷 拍照</button>
+            </div>
+          </div>
+        </div>
+        <input type="file" id="joinPhotoFile" accept="image/*" style="display:none" onchange="handleJoinAvatar(this.files[0])">
+        <input type="file" id="joinPhotoCam" accept="image/*" capture="user" style="display:none" onchange="handleJoinAvatar(this.files[0])">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label class="form-label">你的名字</label>
+        <input class="form-input" id="joinMemberName" placeholder="小明">
+      </div>
+    </div>
+
     <div class="btn-row">
       <button class="btn-cancel" onclick="document.getElementById('joinTripForm').style.display='none'">取消</button>
-      <button class="btn-save" id="joinTripBtn" onclick="joinTrip()">加入旅程</button>
+      <button class="btn-save" id="joinTripBtn" onclick="joinTrip()">加入旅程 →</button>
     </div>
   </div>
 </div>
@@ -576,18 +635,81 @@ function showJoinTrip() {
   document.getElementById('createTripForm').style.display = 'none';
 }
 
+let createAvatarDataUrl = null; // base64 photo for create
+let joinAvatarDataUrl = null;   // base64 photo for join
+
 function renderEmojiPickers() {
   ['createEmojiPicker','joinEmojiPicker'].forEach((pid, idx) => {
     document.getElementById(pid).innerHTML = EMOJIS.map(e =>
-      `<span style="font-size:24px;cursor:pointer;padding:4px;border-radius:7px;border:2px solid ${e===EMOJIS[0]?'var(--orange)':'transparent'}" onclick="selectCreateEmoji(this,'${e}',${idx})">${e}</span>`
+      `<span style="font-size:22px;cursor:pointer;padding:3px;border-radius:7px;border:2px solid ${e===EMOJIS[0]?'var(--orange)':'transparent'}" onclick="selectCreateEmoji(this,'${e}',${idx})">${e}</span>`
     ).join('');
   });
 }
+
 function selectCreateEmoji(el, e, idx) {
   const pid = idx===0 ? 'createEmojiPicker' : 'joinEmojiPicker';
   document.querySelectorAll('#'+pid+' span').forEach(s=>s.style.borderColor='transparent');
   el.style.borderColor = 'var(--orange)';
-  if (idx===0) createSelEmoji = e; else joinSelEmoji = e;
+  if (idx===0) {
+    createSelEmoji = e;
+    createAvatarDataUrl = null; // 清除照片，用 emoji
+    const prev = document.getElementById('createAvatarPreview');
+    prev.style.fontSize = '28px';
+    prev.innerHTML = e;
+  } else {
+    joinSelEmoji = e;
+    joinAvatarDataUrl = null;
+    const prev = document.getElementById('joinAvatarPreview');
+    prev.style.fontSize = '28px';
+    prev.innerHTML = e;
+  }
+}
+
+function compressToDataUrl(file, cb) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 200;
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const min = Math.min(img.width, img.height);
+      const sx = (img.width-min)/2, sy = (img.height-min)/2;
+      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+      cb(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleCreateAvatar(file) {
+  if (!file) return;
+  compressToDataUrl(file, dataUrl => {
+    createAvatarDataUrl = dataUrl;
+    const prev = document.getElementById('createAvatarPreview');
+    prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    // 取消所有 emoji 選取
+    document.querySelectorAll('#createEmojiPicker span').forEach(s=>s.style.borderColor='transparent');
+  });
+}
+
+function handleJoinAvatar(file) {
+  if (!file) return;
+  compressToDataUrl(file, dataUrl => {
+    joinAvatarDataUrl = dataUrl;
+    const prev = document.getElementById('joinAvatarPreview');
+    prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    document.querySelectorAll('#joinEmojiPicker span').forEach(s=>s.style.borderColor='transparent');
+  });
+}
+
+let newTripMemberCount = 1;
+function selMemberCount(btn, n) {
+  newTripMemberCount = n;
+  document.querySelectorAll('#memberCountSelect button').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
 }
 
 function genInviteCode() {
@@ -613,8 +735,12 @@ async function createTrip() {
       invite_code: inviteCode,
     };
     await sb.from('trips').insert(trip);
-    await sb.from('members').insert({ id: memberId, name: memberName, emoji: createSelEmoji, trip_id: tripId });
-    // Save locally
+    await sb.from('members').insert({
+      id: memberId, name: memberName,
+      emoji: createSelEmoji,
+      avatar_url: createAvatarDataUrl || null,
+      trip_id: tripId,
+    });
     const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
     myTrips.push({ id: tripId, memberId });
     localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
@@ -625,7 +751,7 @@ async function createTrip() {
     showApp();
     subscribeRealtime();
   } catch(e) { showToast('建立失敗：' + e.message); }
-  btn.disabled = false; btn.textContent = '建立旅程';
+  btn.disabled = false; btn.textContent = '建立旅程 →';
 }
 
 async function joinTrip() {
@@ -636,9 +762,14 @@ async function joinTrip() {
   btn.disabled = true; btn.textContent = '加入中...';
   try {
     const { data: trip } = await sb.from('trips').select('*').eq('invite_code', code).single();
-    if (!trip) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='加入旅程'; return; }
+    if (!trip) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='加入旅程 →'; return; }
     const memberId = 'mb_' + Date.now();
-    await sb.from('members').insert({ id: memberId, name: memberName, emoji: joinSelEmoji, trip_id: trip.id });
+    await sb.from('members').insert({
+      id: memberId, name: memberName,
+      emoji: joinSelEmoji,
+      avatar_url: joinAvatarDataUrl || null,
+      trip_id: trip.id,
+    });
     const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
     myTrips.push({ id: trip.id, memberId });
     localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
@@ -649,7 +780,7 @@ async function joinTrip() {
     showApp();
     subscribeRealtime();
   } catch(e) { showToast('加入失敗：' + e.message); }
-  btn.disabled = false; btn.textContent = '加入旅程';
+  btn.disabled = false; btn.textContent = '加入旅程 →';
 }
 
 function leaveTrip() {
