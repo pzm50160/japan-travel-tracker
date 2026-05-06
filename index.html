@@ -217,6 +217,24 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .split-total-check span:last-child{font-family:'DM Mono',monospace;font-weight:600}
 .split-total-check.ok span:last-child{color:var(--success)}
 .split-total-check.err span:last-child{color:var(--danger)}
+/* MEMOIR */
+.memoir-cover{background:linear-gradient(135deg,#E8682A 0%,#F5A878 50%,#FFD4A8 100%);border-radius:var(--radius);padding:28px 20px;text-align:center;margin-bottom:12px;position:relative;overflow:hidden}
+.memoir-cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.memoir-cover-title{font-size:22px;font-weight:700;color:white;margin-bottom:4px;position:relative}
+.memoir-cover-sub{font-size:12px;color:rgba(255,255,255,.8);position:relative}
+.memoir-content{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:20px;margin-bottom:12px;line-height:1.8;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.memoir-content h2{font-size:16px;font-weight:700;margin:16px 0 8px;color:var(--orange)}
+.memoir-content h2:first-child{margin-top:0}
+.memoir-generating{text-align:center;padding:40px 20px}
+.memoir-gen-icon{font-size:44px;margin-bottom:12px;animation:bounce 1.2s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.memoir-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.memoir-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center}
+.memoir-stat-val{font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--orange)}
+.memoir-stat-label{font-size:10px;color:var(--text2);margin-top:3px}
+.memoir-photo-strip{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:4px}
+.memoir-photo-strip img{width:100px;height:100px;object-fit:cover;border-radius:10px;flex-shrink:0;cursor:pointer}
+.archived-badge{display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:var(--success);font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid #A7F3D0}
 /* INVITE */
 .invite-box{background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:12px;margin-top:10px}
 .invite-code{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:4px;color:var(--orange);text-align:center;margin:8px 0}
@@ -235,6 +253,32 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <div class="loading-logo">✈️</div>
   <div class="loading-spinner"></div>
   <div class="loading-msg" id="loadingMsg">連接雲端中...</div>
+</div>
+
+<!-- AVATAR CROPPER MODAL -->
+<div id="cropperModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:998;flex-direction:column;align-items:center;justify-content:center;padding:20px">
+  <div style="width:100%;max-width:360px;background:var(--surface);border-radius:20px;overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);font-size:15px;font-weight:700;text-align:center">調整頭像</div>
+    <!-- 裁切區域 -->
+    <div style="position:relative;overflow:hidden;background:#111;touch-action:none" id="cropViewport" style="height:300px">
+      <img id="cropImg" style="position:absolute;transform-origin:0 0;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none" draggable="false">
+      <!-- 圓形遮罩 -->
+      <div id="cropMask" style="position:absolute;inset:0;pointer-events:none"></div>
+    </div>
+    <!-- 縮放滑桿 -->
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:18px;color:var(--text3)">🔍</span>
+        <input type="range" id="cropZoom" min="1" max="4" step="0.01" value="1"
+          style="flex:1;accent-color:var(--orange)" oninput="onZoomChange()">
+        <span style="font-size:22px;color:var(--text3)">🔍</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:0">
+      <button onclick="closeCropper()" style="flex:1;padding:14px;border:none;background:transparent;font-size:14px;cursor:pointer;border-right:1px solid var(--border);color:var(--text2)">取消</button>
+      <button onclick="confirmCrop()" style="flex:2;padding:14px;border:none;background:var(--orange);color:white;font-size:14px;font-weight:600;cursor:pointer">套用</button>
+    </div>
+  </div>
 </div>
 
 <!-- TRIP SELECT SCREEN -->
@@ -350,6 +394,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M1 21v-2a7 7 0 0114 0v2"/><circle cx="17" cy="7" r="4"/><path d="M23 21v-2a5 5 0 00-4-4.9"/></svg>分攤</button>
   <button class="nav-btn" onclick="goPage('stats',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>統計</button>
+  <button class="nav-btn" onclick="goPage('memoir',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>回憶錄</button>
   <button class="nav-btn" onclick="goPage('settings',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>設定</button>
 </nav>
@@ -415,6 +461,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div class="donut-card"><div class="donut-title">支付方式</div><div class="donut-wrap"><canvas id="payChart" role="img" aria-label="支付方式圓餅圖"></canvas></div><div class="legend-list" id="payLegend"></div></div>
   </div>
   <div class="card" style="margin-top:9px"><div style="font-size:12px;font-weight:600;margin-bottom:9px">花費金額前十名</div><div id="top10List"></div></div>
+</div>
+
+<!-- MEMOIR PAGE -->
+<div class="page" id="page-memoir">
+  <div id="memoirContent">
+    <!-- rendered by renderMemoir() -->
+  </div>
 </div>
 
 <div class="page" id="page-settings">
@@ -665,39 +718,210 @@ function selectCreateEmoji(el, e, idx) {
   }
 }
 
-function compressToDataUrl(file, cb) {
+// ─── AVATAR CROPPER ───────────────────────────────────────────────────────────
+let cropper = {
+  callback: null,   // fn(dataUrl) called after confirm
+  imgNaturalW: 0, imgNaturalH: 0,
+  scale: 1, minScale: 1,
+  x: 0, y: 0,       // image top-left position inside viewport (px)
+  vpW: 0, vpH: 0,   // viewport dimensions
+  circleR: 0,        // circle radius
+  dragging: false,
+  lastX: 0, lastY: 0,
+  lastDist: 0,       // for pinch
+};
+
+function openCropperWith(file, callback) {
   const reader = new FileReader();
   reader.onload = e => {
-    const img = new Image();
+    const img = document.getElementById('cropImg');
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const size = 200;
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      const min = Math.min(img.width, img.height);
-      const sx = (img.width-min)/2, sy = (img.height-min)/2;
-      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-      cb(canvas.toDataURL('image/jpeg', 0.75));
+      const modal = document.getElementById('cropperModal');
+      modal.style.display = 'flex';
+      const vp = document.getElementById('cropViewport');
+      // Set viewport height = min(window*0.5, 320)
+      const vpH = Math.min(window.innerHeight * 0.48, 320);
+      vp.style.height = vpH + 'px';
+      const vpW = vp.offsetWidth;
+      cropper.vpW = vpW; cropper.vpH = vpH;
+      cropper.circleR = Math.min(vpW, vpH) * 0.42;
+      cropper.imgNaturalW = img.naturalWidth;
+      cropper.imgNaturalH = img.naturalHeight;
+      cropper.callback = callback;
+      // minScale: image must cover the circle
+      const minByW = (cropper.circleR * 2) / img.naturalWidth;
+      const minByH = (cropper.circleR * 2) / img.naturalHeight;
+      cropper.minScale = Math.max(minByW, minByH);
+      cropper.scale = cropper.minScale;
+      document.getElementById('cropZoom').min = cropper.minScale;
+      document.getElementById('cropZoom').max = cropper.minScale * 4;
+      document.getElementById('cropZoom').value = cropper.minScale;
+      // Center image
+      cropper.x = (vpW - img.naturalWidth * cropper.scale) / 2;
+      cropper.y = (vpH - img.naturalHeight * cropper.scale) / 2;
+      applyTransform();
+      drawMask();
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
+function applyTransform() {
+  clampPos();
+  const img = document.getElementById('cropImg');
+  img.style.width = (cropper.imgNaturalW * cropper.scale) + 'px';
+  img.style.height = (cropper.imgNaturalH * cropper.scale) + 'px';
+  img.style.left = cropper.x + 'px';
+  img.style.top = cropper.y + 'px';
+}
+
+function clampPos() {
+  const iw = cropper.imgNaturalW * cropper.scale;
+  const ih = cropper.imgNaturalH * cropper.scale;
+  const cx = cropper.vpW / 2, cy = cropper.vpH / 2;
+  const r = cropper.circleR;
+  // Image must cover circle: left edge ≤ cx-r, right edge ≥ cx+r
+  cropper.x = Math.min(cropper.x, cx - r);
+  cropper.x = Math.max(cropper.x, cx + r - iw);
+  cropper.y = Math.min(cropper.y, cy - r);
+  cropper.y = Math.max(cropper.y, cy + r - ih);
+}
+
+function drawMask() {
+  const vp = document.getElementById('cropViewport');
+  const mask = document.getElementById('cropMask');
+  const w = cropper.vpW, h = cropper.vpH, r = cropper.circleR;
+  const cx = w / 2, cy = h / 2;
+  // SVG overlay: dark everywhere except circle
+  mask.innerHTML = `<svg width="${w}" height="${h}" style="position:absolute;inset:0">
+    <defs>
+      <mask id="cm">
+        <rect width="${w}" height="${h}" fill="white"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="black"/>
+      </mask>
+    </defs>
+    <rect width="${w}" height="${h}" fill="rgba(0,0,0,0.55)" mask="url(#cm)"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="white" stroke-width="2" stroke-dasharray="6,4" opacity="0.8"/>
+  </svg>`;
+}
+
+function onZoomChange() {
+  const z = parseFloat(document.getElementById('cropZoom').value);
+  // Keep circle center fixed
+  const cx = cropper.vpW / 2, cy = cropper.vpH / 2;
+  const relX = (cx - cropper.x) / cropper.scale;
+  const relY = (cy - cropper.y) / cropper.scale;
+  cropper.scale = z;
+  cropper.x = cx - relX * z;
+  cropper.y = cy - relY * z;
+  applyTransform();
+}
+
+// Mouse events
+document.addEventListener('DOMContentLoaded', () => {
+  const vp = document.getElementById('cropViewport');
+  const img = document.getElementById('cropImg');
+
+  // Mouse drag
+  img.addEventListener('mousedown', e => { cropper.dragging=true; cropper.lastX=e.clientX; cropper.lastY=e.clientY; e.preventDefault(); });
+  document.addEventListener('mousemove', e => {
+    if (!cropper.dragging) return;
+    cropper.x += e.clientX - cropper.lastX;
+    cropper.y += e.clientY - cropper.lastY;
+    cropper.lastX = e.clientX; cropper.lastY = e.clientY;
+    applyTransform();
+  });
+  document.addEventListener('mouseup', () => { cropper.dragging = false; });
+
+  // Touch drag + pinch zoom
+  img.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+      cropper.dragging = true;
+      cropper.lastX = e.touches[0].clientX;
+      cropper.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      cropper.dragging = false;
+      cropper.lastDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive: false });
+
+  img.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 1 && cropper.dragging) {
+      cropper.x += e.touches[0].clientX - cropper.lastX;
+      cropper.y += e.touches[0].clientY - cropper.lastY;
+      cropper.lastX = e.touches[0].clientX;
+      cropper.lastY = e.touches[0].clientY;
+      applyTransform();
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const ratio = dist / (cropper.lastDist || dist);
+      cropper.lastDist = dist;
+      const newScale = Math.max(cropper.minScale, Math.min(cropper.minScale * 4, cropper.scale * ratio));
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const relX = (midX - vp.getBoundingClientRect().left - cropper.x) / cropper.scale;
+      const relY = (midY - vp.getBoundingClientRect().top - cropper.y) / cropper.scale;
+      cropper.x = midX - vp.getBoundingClientRect().left - relX * newScale;
+      cropper.y = midY - vp.getBoundingClientRect().top - relY * newScale;
+      cropper.scale = newScale;
+      document.getElementById('cropZoom').value = newScale;
+      applyTransform();
+    }
+  }, { passive: false });
+
+  img.addEventListener('touchend', () => { cropper.dragging = false; });
+});
+
+function closeCropper() {
+  document.getElementById('cropperModal').style.display = 'none';
+  cropper.callback = null;
+}
+
+function confirmCrop() {
+  const img = document.getElementById('cropImg');
+  const r = cropper.circleR;
+  const cx = cropper.vpW / 2, cy = cropper.vpH / 2;
+  // Map circle center back to image coords
+  const srcX = (cx - r - cropper.x) / cropper.scale;
+  const srcY = (cy - r - cropper.y) / cropper.scale;
+  const srcSize = (r * 2) / cropper.scale;
+  const size = 260;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  // Clip to circle
+  ctx.beginPath();
+  ctx.arc(size/2, size/2, size/2, 0, Math.PI*2);
+  ctx.clip();
+  ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, size, size);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+  document.getElementById('cropperModal').style.display = 'none';
+  if (cropper.callback) cropper.callback(dataUrl);
+  cropper.callback = null;
+}
+
 function handleCreateAvatar(file) {
   if (!file) return;
-  compressToDataUrl(file, dataUrl => {
+  openCropperWith(file, dataUrl => {
     createAvatarDataUrl = dataUrl;
     const prev = document.getElementById('createAvatarPreview');
     prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
-    // 取消所有 emoji 選取
     document.querySelectorAll('#createEmojiPicker span').forEach(s=>s.style.borderColor='transparent');
   });
 }
 
 function handleJoinAvatar(file) {
   if (!file) return;
-  compressToDataUrl(file, dataUrl => {
+  openCropperWith(file, dataUrl => {
     joinAvatarDataUrl = dataUrl;
     const prev = document.getElementById('joinAvatarPreview');
     prev.innerHTML = `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
@@ -901,6 +1125,7 @@ function goPage(id, btn) {
   else if(id==='records')renderRecords();
   else if(id==='split')renderSplit();
   else if(id==='stats')renderStats();
+  else if(id==='memoir')renderMemoir();
   else if(id==='settings')renderSettings();
 }
 
@@ -1295,32 +1520,14 @@ function openAvatarPicker() {
 }
 async function handleAvatarUpload(file) {
   if (!file || !state.myMemberId) return;
-  showToast('上傳中...');
-  // Compress to base64, store as data URL in members table (simple approach, no storage bucket needed)
-  const reader = new FileReader();
-  reader.onload = async e => {
-    // Resize to 200x200
-    const img = new Image();
-    img.onload = async () => {
-      const canvas = document.createElement('canvas');
-      const size = 200;
-      canvas.width = size; canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      // Crop center
-      const min = Math.min(img.width, img.height);
-      const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
-      ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-      await sb.from('members').update({ avatar_url: dataUrl }).eq('id', state.myMemberId);
-      // Update local state
-      const m = state.members.find(x => x.id === state.myMemberId);
-      if (m) m.avatar_url = dataUrl;
-      renderSettings();
-      showToast('頭像已更新！');
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
+  openCropperWith(file, async dataUrl => {
+    showToast('上傳中...');
+    await sb.from('members').update({ avatar_url: dataUrl }).eq('id', state.myMemberId);
+    const m = state.members.find(x => x.id === state.myMemberId);
+    if (m) m.avatar_url = dataUrl;
+    renderSettings();
+    showToast('頭像已更新！');
+  });
 }
 
 // ─── PHOTO MODAL ──────────────────────────────────────────────────────────────
@@ -1333,6 +1540,233 @@ function showPhotoModal(url) {
   img.style.cssText = 'max-width:100%;max-height:90vh;border-radius:10px;object-fit:contain';
   backdrop.appendChild(img);
   document.body.appendChild(backdrop);
+}
+
+// ─── MEMOIR & ARCHIVE ─────────────────────────────────────────────────────────
+async function renderMemoir() {
+  const cont = document.getElementById('memoirContent');
+  const t = state.trip;
+  if (!t) return;
+
+  const isArchived = t.archived;
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000) || 1;
+  const photos = state.expenses.filter(e=>e.photo_url).map(e=>e.photo_url);
+  const memoirText = t.memoir_text || '';
+  const memberNames = state.members.map(m=>m.name).join('、');
+
+  // Stats
+  const catTotals = {};
+  CATS.forEach(c=>{ catTotals[c]=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0); });
+  const topCat = Object.entries(catTotals).sort((a,b)=>b[1]-a[1])[0];
+  const topStore = (() => {
+    const s={}; state.expenses.filter(e=>e.store).forEach(e=>{ s[e.store]=(s[e.store]||0)+toTWD(e); });
+    return Object.entries(s).sort((a,b)=>b[1]-a[1])[0];
+  })();
+
+  let html = `
+    <div class="memoir-cover">
+      <div style="font-size:44px;margin-bottom:8px">📖</div>
+      <div class="memoir-cover-title">${t.name}</div>
+      <div class="memoir-cover-sub">${t.start_date} ～ ${t.end_date} · ${memberNames}</div>
+      ${isArchived ? '<div style="margin-top:10px"><span class="archived-badge">✓ 已封存</span></div>' : ''}
+    </div>
+
+    <!-- 快速數字 -->
+    <div class="memoir-stat-grid">
+      <div class="memoir-stat"><div class="memoir-stat-val">${days}</div><div class="memoir-stat-label">旅行天數</div></div>
+      <div class="memoir-stat"><div class="memoir-stat-val">${state.expenses.length}</div><div class="memoir-stat-label">消費筆數</div></div>
+      <div class="memoir-stat"><div class="memoir-stat-val">NT$${Math.round(totalTWD/days).toLocaleString()}</div><div class="memoir-stat-label">日均花費</div></div>
+      <div class="memoir-stat"><div class="memoir-stat-val">${topCat?topCat[0]:'—'}</div><div class="memoir-stat-label">最大支出類別</div></div>
+    </div>`;
+
+  // 照片牆
+  if (photos.length) {
+    html += `<div style="font-size:13px;font-weight:600;margin-bottom:8px">📸 旅途照片</div>
+      <div class="memoir-photo-strip">${photos.map(p=>`<img src="${p}" onclick="showPhotoModal('${p}')" loading="lazy">`).join('')}</div>`;
+  }
+
+  // AI 回憶錄區塊
+  html += `<div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:14px;font-weight:700">✨ AI 旅程回憶錄</span>
+      ${memoirText ? `<button onclick="generateMemoir(true)" style="font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;font-weight:500">重新生成</button>` : ''}
+    </div>
+    <div id="memoirBody" style="padding:16px">`;
+
+  if (memoirText) {
+    html += `<div class="memoir-content">${formatMemoirText(memoirText)}</div>`;
+  } else {
+    html += `<div style="text-align:center;padding:30px 20px">
+      <div style="font-size:40px;margin-bottom:10px">🤖</div>
+      <div style="font-size:14px;font-weight:500;margin-bottom:6px">讓 AI 幫你寫旅程故事</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:16px">根據你的消費記錄、照片、地點，自動生成一篇充滿溫度的旅遊回憶錄</div>
+      <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm)" onclick="generateMemoir(false)">✨ 開始生成回憶錄</button>
+      ${!state.apiKey?'<div style="font-size:11px;color:var(--danger);margin-top:8px">⚠️ 請先在設定填入 Anthropic API Key</div>':''}
+    </div>`;
+  }
+  html += `</div></div>`;
+
+  // 封存 / 解封
+  html += `<div class="card" style="margin-top:4px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${isArchived?'📦 旅程已封存':'📦 封存旅程'}</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">${isArchived?'旅程已封存，記錄永久保留。可解除封存繼續記帳。':'封存後旅程進入唯讀模式，記錄永久保留不會消失。'}</div>
+    <button class="${isArchived?'btn-cancel':'btn-save'}" style="width:100%;padding:10px;font-size:13px;border-radius:var(--radius-sm)" onclick="${isArchived?'unarchiveTrip()':'archiveTrip()'}">
+      ${isArchived?'🔓 解除封存':'📦 封存此旅程'}
+    </button>
+  </div>`;
+
+  // 匯出
+  html += `<div class="card" style="margin-top:4px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">匯出旅程</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px" onclick="exportMemoir()">📄 匯出 HTML</button>
+      <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px" onclick="exportData()">📊 匯出 JSON</button>
+    </div>
+  </div>`;
+
+  cont.innerHTML = html;
+}
+
+function formatMemoirText(text) {
+  return text
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<strong style="font-size:13px;color:var(--text)">$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+}
+
+async function generateMemoir(regenerate) {
+  if (!state.apiKey) { showToast('請先在設定填入 API Key'); return; }
+  const body = document.getElementById('memoirBody');
+  body.innerHTML = `<div class="memoir-generating">
+    <div class="memoir-gen-icon">✍️</div>
+    <div style="font-size:14px;font-weight:500;margin-bottom:6px">AI 正在撰寫你的回憶錄...</div>
+    <div style="font-size:12px;color:var(--text2)">根據 ${state.expenses.length} 筆消費記錄分析中</div>
+  </div>`;
+
+  const t = state.trip;
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000) || 1;
+  const memberNames = state.members.map(m=>m.name).join('、');
+
+  // 建構給 AI 的資料摘要
+  const catBreakdown = CATS.map(c=>{
+    const sum=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);
+    return sum>0 ? `${c}：NT$${Math.round(sum).toLocaleString()}` : null;
+  }).filter(Boolean).join('、');
+
+  const topStores = (() => {
+    const s={}; state.expenses.filter(e=>e.store).forEach(e=>{ s[e.store]=(s[e.store]||0)+toTWD(e); });
+    return Object.entries(s).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}（NT$${Math.round(v).toLocaleString()}）`).join('、');
+  })();
+
+  const byDate = {};
+  state.expenses.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
+  const dailySummary = Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,exps])=>{
+    const sum=exps.reduce((a,e)=>a+toTWD(e),0);
+    const items=exps.slice(0,3).map(e=>e.name+(e.store?` @ ${e.store}`:'')).join('、');
+    return `${date}：${items}（NT$${Math.round(sum).toLocaleString()}）`;
+  }).join('\n');
+
+  const prompt = `你是一位溫暖有文采的旅遊作家，請根據以下旅行資料，用繁體中文寫一篇約 600-800 字的旅程回憶錄。
+
+旅程名稱：${t.name}
+旅行期間：${t.start_date} ～ ${t.end_date}（${days} 天）
+旅伴：${memberNames}
+總花費：NT$${Math.round(totalTWD).toLocaleString()}
+
+消費分類：${catBreakdown}
+
+常去地點：${topStores || '無'}
+
+每日記錄：
+${dailySummary}
+
+請用以下格式撰寫：
+## 旅程序章
+（溫暖的開場，描述出發的心情和期待）
+
+## 旅途足跡
+（依時間描述每天的精彩時刻，從消費記錄推測去了哪些地方、吃了什麼、買了什麼紀念品）
+
+## 美食與記憶
+（聚焦餐飲和購物的美好體驗）
+
+## 旅行花絮
+（有趣的小故事或感受，可從消費數據中找靈感，例如買藥代表身體不適但仍堅持旅行）
+
+## 旅程尾聲
+（溫馨的結尾，總結這段旅程的意義）
+
+請讓文字充滿溫度和畫面感，讓人讀完有身歷其境的感覺。`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01' },
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:prompt}] })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content.find(c=>c.type==='text')?.text || '';
+    // Save to Supabase
+    await sb.from('trips').update({ memoir_text: text }).eq('id', state.tripId);
+    state.trip.memoir_text = text;
+    body.innerHTML = `<div class="memoir-content">${formatMemoirText(text)}</div>
+      <button onclick="generateMemoir(true)" style="width:100%;margin-top:10px;padding:9px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;color:var(--text2)">🔄 重新生成</button>`;
+    showToast('回憶錄已生成！');
+  } catch(e) {
+    body.innerHTML = `<div style="padding:16px;color:var(--danger);font-size:12px">❌ 生成失敗：${e.message}</div>
+      <button onclick="generateMemoir(false)" style="margin:0 16px 16px;padding:9px 20px;background:var(--orange);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;cursor:pointer">重試</button>`;
+  }
+}
+
+async function archiveTrip() {
+  if (!confirm('封存後旅程進入唯讀模式，確定嗎？')) return;
+  await sb.from('trips').update({ archived: true }).eq('id', state.tripId);
+  state.trip.archived = true;
+  renderMemoir();
+  showToast('旅程已封存 📦');
+}
+async function unarchiveTrip() {
+  await sb.from('trips').update({ archived: false }).eq('id', state.tripId);
+  state.trip.archived = false;
+  renderMemoir();
+  showToast('已解除封存');
+}
+
+function exportMemoir() {
+  const t = state.trip;
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const memoirText = t.memoir_text ? formatMemoirText(t.memoir_text) : '<p style="color:#999">尚未生成回憶錄</p>';
+  const photos = state.expenses.filter(e=>e.photo_url).map(e=>`<img src="${e.photo_url}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin:4px">`).join('');
+  const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>${t.name} 回憶錄</title>
+  <style>body{font-family:'Noto Sans TC',sans-serif;max-width:680px;margin:40px auto;padding:0 20px;color:#1A1816;line-height:1.8}
+  h1{font-size:28px;color:#E8682A;margin-bottom:4px}.sub{color:#999;font-size:13px;margin-bottom:24px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
+  .stat{background:#FDF0EA;border-radius:10px;padding:14px;text-align:center}
+  .stat-val{font-size:20px;font-weight:700;color:#E8682A}.stat-label{font-size:11px;color:#6B6560;margin-top:3px}
+  .photos{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+  .memoir{background:#FAFAFA;border-radius:12px;padding:24px;margin:20px 0;font-size:15px}
+  h2{color:#E8682A;margin:20px 0 8px}
+  </style></head><body>
+  <h1>📖 ${t.name}</h1>
+  <div class="sub">${t.start_date} ～ ${t.end_date} · ${state.members.map(m=>m.name).join('、')}</div>
+  <div class="stats">
+    <div class="stat"><div class="stat-val">${Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)}</div><div class="stat-label">旅行天數</div></div>
+    <div class="stat"><div class="stat-val">${state.expenses.length}</div><div class="stat-label">消費筆數</div></div>
+    <div class="stat"><div class="stat-val">NT$${Math.round(totalTWD).toLocaleString()}</div><div class="stat-label">總花費</div></div>
+    <div class="stat"><div class="stat-val">${state.members.length}</div><div class="stat-label">旅伴人數</div></div>
+  </div>
+  ${photos?`<div class="photos">${photos}</div>`:''}
+  <div class="memoir">${memoirText}</div>
+  <p style="color:#ccc;font-size:11px;margin-top:40px">由日本旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}</p>
+  </body></html>`;
+  const a = document.createElement('a');
+  a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+  a.download = t.name + '_回憶錄.html';
+  a.click();
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
