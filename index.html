@@ -9,6 +9,8 @@
 <title>日本旅遊記帳 ✈️</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -238,7 +240,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 /* INVITE */
 .invite-box{background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:12px;margin-top:10px}
 .invite-code{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:4px;color:var(--orange);text-align:center;margin:8px 0}
-/* TOAST */
+/* EXPORT BTNS */
+.export-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:inherit;transition:border-color .15s;width:100%}
+.export-btn:hover{border-color:var(--orange);background:var(--orange-light)}
+/* POSTER */
+#posterCanvas{display:none}
+.poster-preview{width:100%;border-radius:var(--radius-sm);box-shadow:0 4px 20px rgba(0,0,0,.15)}
 .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-80px);background:#1A1816;color:white;padding:9px 17px;border-radius:30px;font-size:12px;font-weight:500;z-index:999;transition:transform .3s ease;white-space:nowrap}
 .toast.show{transform:translateX(-50%) translateY(0)}
 .empty{text-align:center;padding:34px 18px;color:var(--text3)}
@@ -566,6 +573,50 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div class="btn-row">
       <button class="btn-cancel" onclick="closeModal()">取消</button>
       <button class="btn-save" id="saveBtn" onclick="saveExpense()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- EMAIL MODAL -->
+<div class="modal-backdrop" id="emailModal">
+  <div class="modal">
+    <div class="modal-title">📧 寄送回憶錄</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px">輸入收件者 Email，把旅程回憶錄寄給旅伴</div>
+    <div class="form-group">
+      <label class="form-label">收件者（可多位，用逗號分隔）</label>
+      <input class="form-input" id="emailRecipients" placeholder="friend@gmail.com, partner@gmail.com" type="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">寄件者名稱</label>
+      <input class="form-input" id="emailSenderName" placeholder="小美">
+    </div>
+    <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:4px">郵件預覽主旨：</div>
+      <div style="font-size:12px;font-weight:500" id="emailSubjectPreview">📖 日本旅遊回憶錄</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px">
+      💡 使用系統預設郵件 App 寄送，不需額外設定
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="document.getElementById('emailModal').classList.remove('open')">取消</button>
+      <button class="btn-save" onclick="sendEmail()">開啟郵件 App</button>
+    </div>
+  </div>
+</div>
+
+<!-- POSTER MODAL -->
+<div class="modal-backdrop" id="posterModal">
+  <div class="modal" style="padding:0;overflow:hidden;border-radius:20px 20px 0 0">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:15px;font-weight:700">🖼️ 旅程海報</span>
+      <button onclick="document.getElementById('posterModal').classList.remove('open')" style="background:none;border:none;cursor:pointer;color:var(--text2);font-size:20px">×</button>
+    </div>
+    <div style="padding:16px;max-height:70vh;overflow-y:auto">
+      <div id="posterPreviewWrap" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-cancel" style="flex:1;padding:11px;font-size:13px" onclick="document.getElementById('posterModal').classList.remove('open')">關閉</button>
+        <button class="btn-save" style="flex:2;padding:11px;font-size:13px" onclick="downloadPoster()">⬇️ 下載圖片</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1618,10 +1669,28 @@ async function renderMemoir() {
 
   // 匯出
   html += `<div class="card" style="margin-top:4px">
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px">匯出旅程</div>
-    <div style="display:flex;gap:8px">
-      <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px" onclick="exportMemoir()">📄 匯出 HTML</button>
-      <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px" onclick="exportData()">📊 匯出 JSON</button>
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">匯出 & 分享</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="export-btn" onclick="exportPDF()">
+        <span style="font-size:20px">📄</span>
+        <span style="font-size:12px;font-weight:600">匯出 PDF</span>
+        <span style="font-size:10px;color:var(--text2)">適合存檔列印</span>
+      </button>
+      <button class="export-btn" onclick="exportPoster()">
+        <span style="font-size:20px">🖼️</span>
+        <span style="font-size:12px;font-weight:600">旅程海報</span>
+        <span style="font-size:10px;color:var(--text2)">可分享到社群</span>
+      </button>
+      <button class="export-btn" onclick="openEmailModal()">
+        <span style="font-size:20px">📧</span>
+        <span style="font-size:12px;font-weight:600">寄送 Email</span>
+        <span style="font-size:10px;color:var(--text2)">傳給所有旅伴</span>
+      </button>
+      <button class="export-btn" onclick="exportMemoir()">
+        <span style="font-size:20px">🌐</span>
+        <span style="font-size:12px;font-weight:600">匯出 HTML</span>
+        <span style="font-size:10px;color:var(--text2)">完整網頁版本</span>
+      </button>
     </div>
   </div>`;
 
@@ -1736,37 +1805,331 @@ async function unarchiveTrip() {
   showToast('已解除封存');
 }
 
+// ─── EXPORT: HTML ─────────────────────────────────────────────────────────────
 function exportMemoir() {
   const t = state.trip;
   const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
   const memoirText = t.memoir_text ? formatMemoirText(t.memoir_text) : '<p style="color:#999">尚未生成回憶錄</p>';
-  const photos = state.expenses.filter(e=>e.photo_url).map(e=>`<img src="${e.photo_url}" style="width:120px;height:120px;object-fit:cover;border-radius:10px;margin:4px">`).join('');
+  const photos = state.expenses.filter(e=>e.photo_url).map(e=>`<img src="${e.photo_url}" style="width:130px;height:130px;object-fit:cover;border-radius:10px;margin:4px">`).join('');
+  const catRows = CATS.map(c=>{const s=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);return s>0?`<tr><td>${c}</td><td style="text-align:right;font-weight:600">NT$${Math.round(s).toLocaleString()}</td></tr>`:''}).join('');
   const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>${t.name} 回憶錄</title>
-  <style>body{font-family:'Noto Sans TC',sans-serif;max-width:680px;margin:40px auto;padding:0 20px;color:#1A1816;line-height:1.8}
-  h1{font-size:28px;color:#E8682A;margin-bottom:4px}.sub{color:#999;font-size:13px;margin-bottom:24px}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}
-  .stat{background:#FDF0EA;border-radius:10px;padding:14px;text-align:center}
-  .stat-val{font-size:20px;font-weight:700;color:#E8682A}.stat-label{font-size:11px;color:#6B6560;margin-top:3px}
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Noto Sans TC',sans-serif;background:#F2F0EB;color:#1A1816;line-height:1.8}
+  .cover{background:linear-gradient(135deg,#E8682A,#F5A878,#FFD4A8);padding:60px 40px;text-align:center;color:white}
+  .cover h1{font-size:32px;font-weight:700;margin-bottom:8px}.cover .sub{font-size:14px;opacity:.85}
+  .container{max-width:720px;margin:0 auto;padding:30px 20px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}
+  .stat{background:white;border-radius:12px;padding:16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .stat-val{font-size:22px;font-weight:700;color:#E8682A}.stat-label{font-size:11px;color:#6B6560;margin-top:4px}
   .photos{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
-  .memoir{background:#FAFAFA;border-radius:12px;padding:24px;margin:20px 0;font-size:15px}
-  h2{color:#E8682A;margin:20px 0 8px}
+  .memoir-box{background:white;border-radius:14px;padding:28px;margin:20px 0;box-shadow:0 2px 8px rgba(0,0,0,.06);font-size:15px;line-height:2}
+  h2{color:#E8682A;font-size:18px;margin:24px 0 10px;border-left:4px solid #E8682A;padding-left:10px}
+  h2:first-child{margin-top:0}
+  .cat-table{width:100%;border-collapse:collapse;margin:16px 0}
+  .cat-table td{padding:8px 12px;border-bottom:1px solid #E5E2DC;font-size:14px}
+  .footer{text-align:center;color:#ccc;font-size:11px;padding:30px 20px}
   </style></head><body>
-  <h1>📖 ${t.name}</h1>
-  <div class="sub">${t.start_date} ～ ${t.end_date} · ${state.members.map(m=>m.name).join('、')}</div>
-  <div class="stats">
-    <div class="stat"><div class="stat-val">${Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)}</div><div class="stat-label">旅行天數</div></div>
-    <div class="stat"><div class="stat-val">${state.expenses.length}</div><div class="stat-label">消費筆數</div></div>
-    <div class="stat"><div class="stat-val">NT$${Math.round(totalTWD).toLocaleString()}</div><div class="stat-label">總花費</div></div>
-    <div class="stat"><div class="stat-val">${state.members.length}</div><div class="stat-label">旅伴人數</div></div>
+  <div class="cover"><div style="font-size:52px;margin-bottom:16px">📖</div><h1>${t.name}</h1><div class="sub">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${state.members.map(m=>m.name).join('、')}</div></div>
+  <div class="container">
+    <div class="stats">
+      <div class="stat"><div class="stat-val">${Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)}</div><div class="stat-label">旅行天數</div></div>
+      <div class="stat"><div class="stat-val">${state.expenses.length}</div><div class="stat-label">消費筆數</div></div>
+      <div class="stat"><div class="stat-val">NT$${Math.round(totalTWD/1000).toFixed(1)}k</div><div class="stat-label">總花費</div></div>
+      <div class="stat"><div class="stat-val">${state.members.length}</div><div class="stat-label">旅伴人數</div></div>
+    </div>
+    ${photos?`<div class="photos">${photos}</div>`:''}
+    <h2 style="border:none;padding:0;margin-bottom:8px">消費明細</h2>
+    <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)"><table class="cat-table">${catRows}</table></div>
+    <div class="memoir-box">${memoirText}</div>
   </div>
-  ${photos?`<div class="photos">${photos}</div>`:''}
-  <div class="memoir">${memoirText}</div>
-  <p style="color:#ccc;font-size:11px;margin-top:40px">由日本旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}</p>
+  <div class="footer">由日本旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}</div>
   </body></html>`;
   const a = document.createElement('a');
   a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
   a.download = t.name + '_回憶錄.html';
   a.click();
+}
+
+// ─── EXPORT: PDF ──────────────────────────────────────────────────────────────
+async function exportPDF() {
+  if (!window.jspdf) { showToast('PDF 套件載入中，請稍候再試'); return; }
+  showToast('PDF 生成中...');
+  const { jsPDF } = window.jspdf;
+  const t = state.trip;
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)||1;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W = 210, margin = 18;
+  let y = 0;
+
+  // Cover gradient background
+  doc.setFillColor(232, 104, 42);
+  doc.rect(0, 0, W, 60, 'F');
+  doc.setFillColor(245, 168, 120);
+  doc.rect(0, 40, W, 20, 'F');
+
+  // Title
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(22); doc.setFont('helvetica','bold');
+  doc.text(t.name, W/2, 28, {align:'center'});
+  doc.setFontSize(11); doc.setFont('helvetica','normal');
+  doc.text(`${t.start_date} ～ ${t.end_date}`, W/2, 38, {align:'center'});
+  doc.text(state.members.map(m=>m.name).join(' · '), W/2, 46, {align:'center'});
+  y = 70;
+
+  // Stats row
+  const stats = [
+    {val:days+'天', label:'旅行天數'},
+    {val:state.expenses.length+'筆', label:'消費記錄'},
+    {val:'NT$'+Math.round(totalTWD/1000).toFixed(1)+'k', label:'總花費'},
+    {val:'NT$'+Math.round(totalTWD/days/100)*100, label:'日均花費'},
+  ];
+  const bw = (W - margin*2 - 9) / 4;
+  stats.forEach((s,i) => {
+    const x = margin + i*(bw+3);
+    doc.setFillColor(253,240,234); doc.roundedRect(x, y, bw, 22, 3, 3, 'F');
+    doc.setTextColor(232,104,42); doc.setFontSize(13); doc.setFont('helvetica','bold');
+    doc.text(String(s.val), x+bw/2, y+10, {align:'center'});
+    doc.setTextColor(107,101,96); doc.setFontSize(8); doc.setFont('helvetica','normal');
+    doc.text(s.label, x+bw/2, y+18, {align:'center'});
+  });
+  y += 32;
+
+  // Category breakdown
+  doc.setTextColor(232,104,42); doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text('消費分類', margin, y); y += 7;
+  CATS.forEach(c => {
+    const sum = state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);
+    if (!sum) return;
+    const pct = Math.round(sum/totalTWD*100);
+    const barW = (W - margin*2 - 40);
+    doc.setFillColor(242,240,235); doc.roundedRect(margin, y, W-margin*2, 8, 2, 2, 'F');
+    doc.setFillColor(232,104,42); doc.roundedRect(margin, y, barW*pct/100, 8, 2, 2, 'F');
+    doc.setTextColor(26,24,22); doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text(c, margin+3, y+5.5);
+    doc.setTextColor(107,101,96);
+    doc.text(`NT$${Math.round(sum).toLocaleString()} (${pct}%)`, W-margin, y+5.5, {align:'right'});
+    y += 11;
+  });
+  y += 6;
+
+  // Memoir text
+  if (t.memoir_text) {
+    if (y > 220) { doc.addPage(); y = 20; }
+    doc.setTextColor(232,104,42); doc.setFontSize(13); doc.setFont('helvetica','bold');
+    doc.text('旅程回憶錄', margin, y); y += 8;
+    doc.setTextColor(26,24,22); doc.setFontSize(10); doc.setFont('helvetica','normal');
+    const clean = t.memoir_text.replace(/##+ /g,'').replace(/\*\*/g,'');
+    const lines = doc.splitTextToSize(clean, W - margin*2);
+    lines.forEach(line => {
+      if (y > 275) { doc.addPage(); y = 20; }
+      doc.text(line, margin, y); y += 6;
+    });
+  }
+
+  // Footer
+  doc.setFontSize(8); doc.setTextColor(180,180,180);
+  doc.text(`由日本旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}`, W/2, 290, {align:'center'});
+
+  doc.save(t.name + '_回憶錄.pdf');
+  showToast('PDF 已下載！');
+}
+
+// ─── EXPORT: POSTER (Canvas) ─────────────────────────────────────────────────
+let posterDataUrl = null;
+async function exportPoster() {
+  showToast('海報生成中...');
+  const t = state.trip;
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)||1;
+  const photos = state.expenses.filter(e=>e.photo_url).slice(0,6).map(e=>e.photo_url);
+  const topCat = (() => {
+    const s={}; CATS.forEach(c=>{s[c]=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0)});
+    return Object.entries(s).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+  })();
+
+  const W = 750, H = 1200;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  const grad = ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,'#1A1816'); grad.addColorStop(1,'#2D2420');
+  ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
+
+  // Decorative circles
+  ctx.fillStyle='rgba(232,104,42,0.08)'; ctx.beginPath(); ctx.arc(W,0,300,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(232,104,42,0.05)'; ctx.beginPath(); ctx.arc(0,H,250,0,Math.PI*2); ctx.fill();
+
+  // Orange accent line
+  ctx.fillStyle='#E8682A'; ctx.fillRect(60,0,4,H);
+
+  // Photos grid (top section)
+  let photoY = 50;
+  if (photos.length) {
+    const loadImg = src => new Promise(res => {
+      const img = new Image(); img.crossOrigin='anonymous';
+      img.onload = ()=>res(img); img.onerror=()=>res(null);
+      img.src = src;
+    });
+    const imgs = await Promise.all(photos.map(loadImg));
+    const validImgs = imgs.filter(Boolean);
+    if (validImgs.length) {
+      const ph = 160, gap = 10;
+      const pw = (W - 80 - gap*(validImgs.length-1)) / Math.min(validImgs.length, 3);
+      validImgs.slice(0,3).forEach((img,i) => {
+        const x = 80 + i*(pw+gap);
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(x, photoY, pw, ph, 12);
+        ctx.clip();
+        // Cover fit
+        const scale = Math.max(pw/img.width, ph/img.height);
+        const sw = img.width*scale, sh = img.height*scale;
+        ctx.drawImage(img, x+(pw-sw)/2, photoY+(ph-sh)/2, sw, sh);
+        ctx.restore();
+      });
+      photoY += ph + 20;
+    }
+  }
+
+  // Trip title
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 44px "Noto Sans TC", sans-serif';
+  ctx.fillText(t.name, 80, photoY + 52);
+
+  // Date
+  ctx.fillStyle = '#E8682A';
+  ctx.font = '500 20px "Noto Sans TC", sans-serif';
+  ctx.fillText(`${t.start_date}  ～  ${t.end_date}`, 80, photoY + 86);
+
+  // Members
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '16px "Noto Sans TC", sans-serif';
+  ctx.fillText(state.members.map(m=>m.name).join(' · '), 80, photoY + 116);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(232,104,42,0.4)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(80, photoY+136); ctx.lineTo(W-80, photoY+136); ctx.stroke();
+
+  // Stats grid
+  const statsData = [
+    {icon:'✈️', val:days+'天', label:'旅行天數'},
+    {icon:'💴', val:'NT$'+Math.round(totalTWD/1000).toFixed(1)+'k', label:'旅行總花費'},
+    {icon:'📝', val:state.expenses.length+'筆', label:'消費記錄'},
+    {icon:'🍜', val:topCat, label:'最愛消費類別'},
+  ];
+  const gW = (W-80-60)/2, gH = 110, gGap=20;
+  statsData.forEach((s,i) => {
+    const gx = 80 + (i%2)*(gW+gGap);
+    const gy = photoY + 150 + Math.floor(i/2)*(gH+gGap);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath(); ctx.roundRect(gx, gy, gW, gH, 12); ctx.fill();
+    ctx.strokeStyle='rgba(232,104,42,0.2)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(gx, gy, gW, gH, 12); ctx.stroke();
+    ctx.font='28px sans-serif'; ctx.fillStyle='#E8682A';
+    ctx.fillText(s.icon, gx+20, gy+38);
+    ctx.font='bold 26px "Noto Sans TC",sans-serif'; ctx.fillStyle='#FFFFFF';
+    ctx.fillText(s.val, gx+20, gy+70);
+    ctx.font='14px "Noto Sans TC",sans-serif'; ctx.fillStyle='rgba(255,255,255,0.45)';
+    ctx.fillText(s.label, gx+20, gy+92);
+  });
+
+  // Memoir excerpt
+  if (t.memoir_text) {
+    const excerptY = photoY + 410;
+    ctx.fillStyle='rgba(232,104,42,0.12)';
+    ctx.beginPath(); ctx.roundRect(80, excerptY, W-160, 180, 14); ctx.fill();
+    ctx.strokeStyle='rgba(232,104,42,0.3)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(80, excerptY, W-160, 180, 14); ctx.stroke();
+    ctx.fillStyle='#E8682A'; ctx.font='14px sans-serif';
+    ctx.fillText('✨', 100, excerptY+26);
+    ctx.font='500 14px "Noto Sans TC",sans-serif'; ctx.fillStyle='rgba(255,255,255,0.5)';
+    ctx.fillText('旅程摘要', 122, excerptY+26);
+    const excerpt = t.memoir_text.replace(/##+ /g,'').replace(/\*\*/g,'').slice(0,200)+'...';
+    ctx.font='15px "Noto Sans TC",sans-serif'; ctx.fillStyle='rgba(255,255,255,0.75)';
+    const lines = wrapText(ctx, excerpt, W-180, 22);
+    lines.slice(0,5).forEach((line,i) => ctx.fillText(line, 100, excerptY+52+i*24));
+  }
+
+  // Bottom branding
+  ctx.fillStyle='rgba(255,255,255,0.2)';
+  ctx.font='13px "Noto Sans TC",sans-serif';
+  ctx.fillText('日本旅遊記帳 App', W/2 - 60, H-30);
+
+  posterDataUrl = canvas.toDataURL('image/png');
+  const img = document.createElement('img');
+  img.src = posterDataUrl;
+  img.className = 'poster-preview';
+  document.getElementById('posterPreviewWrap').innerHTML = '';
+  document.getElementById('posterPreviewWrap').appendChild(img);
+  document.getElementById('posterModal').classList.add('open');
+  showToast('海報已生成！');
+}
+
+function wrapText(ctx, text, maxW, lineH) {
+  const words = text.split(''); let line = '', lines = [];
+  for (const ch of words) {
+    const test = line + ch;
+    if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = ch; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function downloadPoster() {
+  if (!posterDataUrl) return;
+  const a = document.createElement('a');
+  a.href = posterDataUrl;
+  a.download = (state.trip?.name||'旅程') + '_海報.png';
+  a.click();
+}
+
+// ─── EXPORT: EMAIL ────────────────────────────────────────────────────────────
+function openEmailModal() {
+  const myMember = state.members.find(m=>m.id===state.myMemberId);
+  document.getElementById('emailSenderName').value = myMember?.name || '';
+  document.getElementById('emailSubjectPreview').textContent = `📖 ${state.trip?.name||''} 旅程回憶錄`;
+  document.getElementById('emailRecipients').value = '';
+  document.getElementById('emailModal').classList.add('open');
+}
+
+function sendEmail() {
+  const t = state.trip;
+  const recipients = document.getElementById('emailRecipients').value.trim();
+  const senderName = document.getElementById('emailSenderName').value.trim() || '旅伴';
+  if (!recipients) { showToast('請輸入收件者 Email'); return; }
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)||1;
+  const subject = encodeURIComponent(`📖 ${t.name} 旅程回憶錄`);
+  const memoirSnippet = t.memoir_text
+    ? t.memoir_text.replace(/##+ /g,'').replace(/\*\*/g,'').slice(0,500)+'...'
+    : '（尚未生成回憶錄，請先到回憶錄頁面生成）';
+  const catSummary = CATS.map(c=>{
+    const s=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);
+    return s>0?`  • ${c}：NT$${Math.round(s).toLocaleString()}`:'';
+  }).filter(Boolean).join('\n');
+  const body = encodeURIComponent(
+`嗨！${senderName} 跟你分享我們的旅程回憶 ✈️
+
+=== ${t.name} ===
+📅 旅行日期：${t.start_date} ～ ${t.end_date}（${days} 天）
+👥 旅伴：${state.members.map(m=>m.name).join('、')}
+💰 總花費：NT$${Math.round(totalTWD).toLocaleString()}
+
+📊 消費分類：
+${catSummary}
+
+✨ 旅程回憶：
+${memoirSnippet}
+
+---
+由日本旅遊記帳 App 生成`);
+  window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
+  document.getElementById('emailModal').classList.remove('open');
+  showToast('已開啟郵件 App！');
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
