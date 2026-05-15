@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="日本記帳">
+<meta name="apple-mobile-web-app-title" content="旅遊記帳">
 <script>
 (function(){
   const c = document.createElement('canvas');
@@ -29,7 +29,7 @@
   document.head.appendChild(link);
 })();
 </script>
-<title>日本旅遊記帳 ✈️</title>
+<title>旅遊記帳 ✈️</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -44,7 +44,7 @@
   --border:#E5E2DC;--success:#2D9E6B;--danger:#E24B4A;
   --radius:14px;--radius-sm:8px;
 }
-body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;overscroll-behavior-x:none}
 /* SYNC INDICATOR */
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;margin-left:5px;transition:background .3s}
 .sync-dot.syncing{background:#F59E0B;animation:pulse .8s infinite}
@@ -211,7 +211,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 /* MODAL */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
 .modal-backdrop.open{display:flex}
-.modal{background:var(--surface);border-radius:18px 18px 0 0;padding:17px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto}
+.modal{background:var(--surface);border-radius:18px 18px 0 0;padding:17px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;touch-action:pan-y}
 .modal-title{font-size:16px;font-weight:700;margin-bottom:13px}
 .form-group{margin-bottom:11px}
 .form-label{font-size:12px;color:var(--text2);margin-bottom:4px;display:block;font-weight:500}
@@ -322,7 +322,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 
 <!-- TRIP SELECT SCREEN -->
 <div class="trip-screen" id="tripScreen">
-  <div class="trip-screen-title">日本旅遊記帳 ✈️</div>
+  <div class="trip-screen-title">旅遊記帳 ✈️</div>
   <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
   <div id="myTripsList"></div>
   <div class="divider">或</div>
@@ -660,7 +660,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
     <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px">
       <div style="font-size:11px;color:var(--text2);margin-bottom:4px">郵件預覽主旨：</div>
-      <div style="font-size:12px;font-weight:500" id="emailSubjectPreview">📖 日本旅遊回憶錄</div>
+      <div style="font-size:12px;font-weight:500" id="emailSubjectPreview">📖 旅遊回憶錄</div>
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px">
       💡 使用系統預設郵件 App 寄送，不需額外設定
@@ -1506,21 +1506,21 @@ function renderRecords() {
   if (recTab==='date') {
     const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
     cont.innerHTML = Object.entries(byDate).map(([date,exps])=>{
-      const d=new Date(date+'T00:00:00'); const sum=exps.reduce((a,e)=>a+e.amount,0);
-      return '<div class="date-group"><div class="date-header"><span class="date-label">'+date+'（'+days[d.getDay()]+'）</span><span class="date-total">'+fmtJPY(sum)+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+      const d=new Date(date+'T00:00:00'); const sum=exps.reduce((a,e)=>a+toTWD(e),0);
+      return '<div class="date-group"><div class="date-header"><span class="date-label">'+date+'（'+days[d.getDay()]+'）</span><span class="date-total">NT$'+Math.round(sum).toLocaleString()+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
     }).join('');
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
-    cont.innerHTML = Object.entries(byCat).sort((a,b)=>b[1].reduce((s,e)=>s+e.amount,0)-a[1].reduce((s,e)=>s+e.amount,0)).map(([cat,exps])=>{
-      const sum=exps.reduce((a,e)=>a+e.amount,0);
-      return '<div class="date-group"><div class="date-header"><span class="date-label">'+cat+'</span><span class="date-total">'+fmtJPY(sum)+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+    cont.innerHTML = Object.entries(byCat).sort((a,b)=>b[1].reduce((s,e)=>s+toTWD(e),0)-a[1].reduce((s,e)=>s+toTWD(e),0)).map(([cat,exps])=>{
+      const sum=exps.reduce((a,e)=>a+toTWD(e),0);
+      return '<div class="date-group"><div class="date-header"><span class="date-label">'+cat+'</span><span class="date-total">NT$'+Math.round(sum).toLocaleString()+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
     }).join('');
   } else {
     cont.innerHTML = state.members.map(m=>{
       const exps=sorted.filter(e=>e.payer_id===m.id);
       if(!exps.length)return'';
-      const sum=exps.reduce((a,e)=>a+e.amount,0);
-      return '<div class="date-group"><div class="date-header"><span class="date-label">'+m.emoji+' '+m.name+'（付款）</span><span class="date-total">'+fmtJPY(sum)+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+      const sum=exps.reduce((a,e)=>a+toTWD(e),0);
+      return '<div class="date-group"><div class="date-header"><span class="date-label">'+m.emoji+' '+m.name+'（付款）</span><span class="date-total">NT$'+Math.round(sum).toLocaleString()+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
     }).join('');
   }
 }
@@ -1553,12 +1553,13 @@ function renderSplit() {
     const rows=partExps.map(e=>{
       const share=getShares(e)[m.id]||0;
       const isPayer=e.payer_id===m.id;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid var(--border);font-size:11px">
-        <span style="color:var(--text3);flex-shrink:0;font-family:'DM Mono',monospace">${e.date.slice(5)}</span>
-        <span style="flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.name}${e.store?' · '+e.store:''}</span>
-        <span style="flex-shrink:0;color:var(--text2)">${e.cat}</span>
-        ${isPayer?`<span style="flex-shrink:0;font-size:10px;color:var(--orange);background:var(--orange-light);padding:1px 5px;border-radius:10px">付款</span>`:''}
-        <span style="flex-shrink:0;font-weight:600;font-family:'DM Mono',monospace;color:${isPayer?'var(--success)':'var(--text)'}">NT$${Math.round(share).toLocaleString()}</span>
+      return `<div style="display:grid;grid-template-columns:34px 1fr 58px;align-items:center;padding:6px 13px;border-bottom:1px solid var(--border);font-size:11px;gap:4px">
+        <span style="color:var(--text3);font-family:'DM Mono',monospace;font-size:10px">${e.date.slice(5)}</span>
+        <div style="min-width:0">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${e.name}${e.store?' · '+e.store:''}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:1px">${e.cat}${isPayer?` · <span style="color:var(--orange);font-weight:600">付款人</span>`:''}</div>
+        </div>
+        <span style="text-align:right;font-weight:600;font-family:'DM Mono',monospace;color:${isPayer?'var(--success)':'var(--text)'}">NT$${Math.round(share).toLocaleString()}</span>
       </div>`;
     }).join('');
     return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px">
@@ -1835,8 +1836,9 @@ function renderParticipants(){
       <div class="participant-share" style="display:flex;align-items:center;gap:5px">
         <input type="number" value="${val||''}" placeholder="0" min="0"
           style="border-color:${isLocked?'var(--orange)':'var(--border)'}"
-          oninput="setCustomShare('${m.id}',this.value)"
-          onblur="lockShare('${m.id}',this.value)">
+          oninput="updateSplitDisplay()"
+          onblur="lockShare('${m.id}',this.value)"
+          data-mid="${m.id}">
         ${isLocked ? `<span onclick="unlockShare('${m.id}')" title="解除鎖定" style="cursor:pointer;font-size:13px;color:var(--orange)">🔒</span>` : `<span style="font-size:11px;color:var(--text3)">自動</span>`}
       </div>
     </div>`;
@@ -1848,7 +1850,14 @@ function renderParticipants(){
 function togglePart(id){state.participants[id]=!state.participants[id];renderParticipants();}
 function lockShare(id,val){if(!val&&val!=='0')return;if(!state.lockedShares)state.lockedShares={};state.lockedShares[id]=parseFloat(val)||0;renderParticipants();}
 function unlockShare(id){if(state.lockedShares)delete state.lockedShares[id];renderParticipants();}
-function setCustomShare(id,val){if(!state.lockedShares)state.lockedShares={};state.lockedShares[id]=parseFloat(val)||0;renderParticipants();}
+function updateSplitDisplay(){
+  const amt=parseFloat(document.getElementById('mAmt').value)||0;
+  let total=0;
+  document.querySelectorAll('#participantList input[data-mid]').forEach(inp=>{total+=parseFloat(inp.value)||0;});
+  const ok=Math.abs(total-amt)<1;
+  const checkEl=document.getElementById('customSplitCheck');
+  if(checkEl){checkEl.className='split-total-check '+(ok?'ok':'err');document.getElementById('splitTotalVal').textContent=fmtCur(total)+' / '+fmtCur(amt);}
+}
 function closeModal(){document.getElementById('addModal').classList.remove('open');}
 
 async function saveExpense() {
@@ -1964,12 +1973,70 @@ function onAmtChange() {
 }
 
 // ─── PHOTO (expense) ──────────────────────────────────────────────────────────
+async function getExifOrientation(file) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = e => {
+      const v = new DataView(e.target.result);
+      if (v.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
+      let off = 2;
+      while (off < e.target.result.byteLength) {
+        const marker = v.getUint16(off, false); off += 2;
+        if (marker === 0xFFE1) {
+          if (v.getUint32(off + 2, false) !== 0x45786966) { resolve(1); return; }
+          const le = v.getUint16(off + 8, false) === 0x4949;
+          off += 10;
+          const tags = v.getUint16(off, le); off += 2;
+          for (let i = 0; i < tags; i++) {
+            if (v.getUint16(off + i * 12, le) === 0x0112) { resolve(v.getUint16(off + i * 12 + 8, le)); return; }
+          }
+        } else if ((marker & 0xFF00) !== 0xFF00) break;
+        else off += v.getUint16(off, false);
+      }
+      resolve(1);
+    };
+    r.readAsArrayBuffer(file.slice(0, 65536));
+  });
+}
+async function fixPhotoOrientation(dataUrl, file) {
+  const ori = await getExifOrientation(file);
+  if (ori === 1) return dataUrl;
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const canvas = document.createElement('canvas');
+      const swap = [5,6,7,8].includes(ori);
+      canvas.width = swap ? h : w; canvas.height = swap ? w : h;
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      if (ori===2) ctx.transform(-1,0,0,1,w,0);
+      else if (ori===3) ctx.transform(-1,0,0,-1,w,h);
+      else if (ori===4) ctx.transform(1,0,0,-1,0,h);
+      else if (ori===5) ctx.transform(0,1,1,0,0,0);
+      else if (ori===6) ctx.transform(0,1,-1,0,h,0);
+      else if (ori===7) ctx.transform(0,-1,-1,0,h,w);
+      else if (ori===8) ctx.transform(0,-1,1,0,0,w);
+      ctx.drawImage(img, 0, 0); ctx.restore();
+      const MAX = 1400;
+      if (canvas.width > MAX || canvas.height > MAX) {
+        const ratio = Math.min(MAX/canvas.width, MAX/canvas.height);
+        const c2 = document.createElement('canvas');
+        c2.width = Math.round(canvas.width*ratio); c2.height = Math.round(canvas.height*ratio);
+        c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
+        resolve(c2.toDataURL('image/jpeg', 0.85));
+      } else resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = dataUrl;
+  });
+}
 function handlePhotoSelect(file) {
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
-    state.pendingPhotoBase64 = e.target.result;
-    document.getElementById('photoPreview').src = e.target.result;
+  reader.onload = async e => {
+    const corrected = await fixPhotoOrientation(e.target.result, file);
+    state.pendingPhotoBase64 = corrected;
+    document.getElementById('photoPreview').src = corrected;
     document.getElementById('photoPreviewWrap').style.display = 'block';
   };
   reader.readAsDataURL(file);
@@ -2065,19 +2132,29 @@ async function renderMemoir() {
   })();
 
   const coverImg = (t.cover_photos && t.cover_photos[0]) || '';
+  const memoirAvatars = state.members.map(m =>
+    `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.8);background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;flex-shrink:0">
+        ${m.avatar_url?`<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover">`:m.emoji}
+      </div>
+      <span style="font-size:9px;color:rgba(255,255,255,.9);white-space:nowrap;max-width:36px;overflow:hidden;text-overflow:ellipsis">${m.name}</span>
+    </div>`
+  ).join('');
   let html = `
-    <div class="memoir-cover" style="${coverImg ? `background:url('${coverImg}') center/cover no-repeat;` : ''}">
-      ${!coverImg ? '<div style="font-size:44px;margin-bottom:8px">📖</div>' : ''}
-      <div class="memoir-cover-title">${t.name}</div>
-      <div class="memoir-cover-sub">${t.start_date} ～ ${t.end_date} · ${memberNames}</div>
-      ${isArchived ? '<div style="margin-top:10px"><span class="archived-badge">✓ 已封存</span></div>' : ''}
+    <div class="memoir-cover" style="${coverImg ? `background:url('${coverImg}') center/cover no-repeat;` : ''}min-height:180px;display:flex;flex-direction:column;justify-content:flex-end;padding:0;">
+      <div style="position:relative;z-index:1;padding:18px 16px 16px">
+        <div class="memoir-cover-title" style="font-size:20px;margin-bottom:4px">✈️ ${t.name}</div>
+        <div class="memoir-cover-sub">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${days} 天 &nbsp;·&nbsp; ${state.members.length} 人</div>
+        ${isArchived ? '<div style="margin-top:6px"><span class="archived-badge">✓ 已封存</span></div>' : ''}
+        <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">${memoirAvatars}</div>
+      </div>
     </div>
 
     <!-- 快速數字 -->
     <div class="memoir-stat-grid">
       <div class="memoir-stat"><div class="memoir-stat-val">${days}</div><div class="memoir-stat-label">旅行天數</div></div>
       <div class="memoir-stat"><div class="memoir-stat-val">${state.expenses.length}</div><div class="memoir-stat-label">消費筆數</div></div>
-      <div class="memoir-stat"><div class="memoir-stat-val">NT$${Math.round(totalTWD/days).toLocaleString()}</div><div class="memoir-stat-label">所有人日均花費</div></div>
+      <div class="memoir-stat"><div class="memoir-stat-val">NT$${Math.round(totalTWD).toLocaleString()}</div><div class="memoir-stat-label">總花費</div></div>
       <div class="memoir-stat"><div class="memoir-stat-val">${topCat?topCat[0]:'—'}</div><div class="memoir-stat-label">最大支出類別</div></div>
     </div>`;
 
@@ -2292,7 +2369,7 @@ function exportMemoir() {
     <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06)"><table class="cat-table">${catRows}</table></div>
     <div class="memoir-box">${memoirText}</div>
   </div>
-  <div class="footer">由日本旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}</div>
+  <div class="footer">由旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}</div>
   </body></html>`;
   const a = document.createElement('a');
   a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
@@ -2379,7 +2456,7 @@ async function exportPDF() {
 
   // Footer
   doc.setFontSize(8); doc.setTextColor(180,180,180);
-  doc.text(`由日本旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}`, W/2, 290, {align:'center'});
+  doc.text(`由旅遊記帳 App 生成 · ${new Date().toLocaleDateString('zh-TW')}`, W/2, 290, {align:'center'});
 
   doc.save(t.name + '_回憶錄.pdf');
   showToast('PDF 已下載！');
@@ -2506,7 +2583,7 @@ async function exportPoster() {
   // Bottom branding
   ctx.fillStyle='rgba(255,255,255,0.2)';
   ctx.font='13px "Noto Sans TC",sans-serif';
-  ctx.fillText('日本旅遊記帳 App', W/2 - 60, H-30);
+  ctx.fillText('旅遊記帳 App', W/2 - 60, H-30);
 
   posterDataUrl = canvas.toDataURL('image/png');
   const img = document.createElement('img');
@@ -2576,7 +2653,7 @@ ${catSummary}
 ${memoirSnippet}
 
 ---
-由日本旅遊記帳 App 生成`);
+由旅遊記帳 App 生成`);
   window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
   document.getElementById('emailModal').classList.remove('open');
   showToast('已開啟郵件 App！');
@@ -2607,7 +2684,11 @@ async function autoUpdate() {
     localStorage.setItem('_appVer', ver);
     if (stored && stored !== ver) {
       sessionStorage.setItem('_reloading', '1');
-      window.location.replace(location.pathname + '?_r=' + Date.now());
+      const el = document.createElement('div');
+      el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
+      el.innerHTML = '<div style="width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></div><div style="color:#fff;font-size:14px;font-weight:600">🔄 正在更新最新版本…</div>';
+      document.body.appendChild(el);
+      setTimeout(() => window.location.replace(location.pathname + '?_r=' + Date.now()), 600);
     }
   } catch(e) {}
 }
