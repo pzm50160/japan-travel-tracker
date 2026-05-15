@@ -2204,6 +2204,7 @@ async function renderMemoir() {
   const cont = document.getElementById('memoirContent');
   const t = state.trip;
   if (!t) return;
+  if (!gData.players.length && !gData.rounds.length) await loadGData();
 
   const isArchived = t.archived;
   const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
@@ -2252,6 +2253,35 @@ async function renderMemoir() {
   if (photos.length) {
     html += `<div style="font-size:13px;font-weight:600;margin-bottom:8px">📸 旅途照片</div>
       <div class="memoir-photo-strip">${photos.map(p=>`<img src="${p}" onclick="showPhotoModal('${p}')" loading="lazy">`).join('')}</div>`;
+  }
+
+  // 牌局統計
+  if (gData.players.length && gData.rounds.length) {
+    const totals = gTotals();
+    const sortedPlayers = [...gData.players].sort((a,b)=>(totals[b.id]||0)-(totals[a.id]||0));
+    const { bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal } = gameTopStats();
+    html += `<div class="card" style="margin-bottom:4px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">🃏 大老二戰績</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">共 ${gData.rounds.length} 局</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+        ${sortedPlayers.map((p,i)=>{
+          const tot = totals[p.id]||0;
+          const stat = gPlayerStat(p.id);
+          return `<div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
+            ${gAvHtml(p,24)}
+            <span style="font-size:12px;font-weight:600;flex:1">${p.name}</span>
+            <span style="font-size:11px;color:var(--text2)">${stat.wins}勝${stat.losses}負</span>
+            <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${tot>=0?'var(--success)':'var(--danger)'}">${tot>=0?'+':''}${tot}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;text-align:center">
+        ${bestRoundPlayer?`<div style="background:var(--bg);border-radius:8px;padding:7px 4px"><div style="font-size:16px">⚡</div><div style="color:var(--text2);margin:2px 0">最佳單局</div><div style="font-weight:600">${bestRoundPlayer.name}</div><div style="color:var(--success);font-weight:700">+${bestRoundScore}</div></div>`:''}
+        ${worstRoundPlayer&&worstRoundScore<0?`<div style="background:var(--bg);border-radius:8px;padding:7px 4px"><div style="font-size:16px">💸</div><div style="color:var(--text2);margin:2px 0">單局輸最多</div><div style="font-weight:600">${worstRoundPlayer.name}</div><div style="color:var(--danger);font-weight:700">${worstRoundScore}</div></div>`:''}
+        ${maxStreakVal>=2?`<div style="background:var(--bg);border-radius:8px;padding:7px 4px"><div style="font-size:16px">🔥</div><div style="color:var(--text2);margin:2px 0">最長連勝</div><div style="font-weight:600">${maxStreak.name}</div><div style="color:var(--orange);font-weight:700">${maxStreakVal} 連</div></div>`:''}
+      </div>
+    </div>`;
   }
 
   // AI 回憶錄區塊
@@ -2921,24 +2951,27 @@ function renderGameLeaderboard() {
   </div>`;
 }
 
+function gameTopStats() {
+  const totals = gTotals();
+  const leader = gData.players.reduce((a,b) => totals[a.id]>=totals[b.id]?a:b);
+  const mostWins = gData.players.reduce((a,b) => gPlayerStat(a.id).wins>=gPlayerStat(b.id).wins?a:b);
+  let bestRoundPlayer = null, bestRoundScore = -Infinity;
+  let worstRoundPlayer = null, worstRoundScore = Infinity;
+  gData.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
+    if (v > bestRoundScore) { bestRoundScore=v; bestRoundPlayer=gData.players.find(p=>p.id===pid); }
+    if (v < worstRoundScore) { worstRoundScore=v; worstRoundPlayer=gData.players.find(p=>p.id===pid); }
+  }));
+  const maxStreak = gData.players.reduce((a,b) => gPlayerStat(a.id).streak>=gPlayerStat(b.id).streak?a:b);
+  const maxStreakVal = gPlayerStat(maxStreak.id).streak;
+  return { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal };
+}
+
 function renderGameStats() {
   const cont = document.getElementById('gameStats');
   if (!gData.rounds.length || !gData.players.length) { cont.innerHTML=''; return; }
-  const totals = gTotals();
-  // 最高總分
-  const leader = gData.players.reduce((a,b) => totals[a.id]>=totals[b.id]?a:b);
-  // 最多勝局
-  const mostWins = gData.players.reduce((a,b) => gPlayerStat(a.id).wins>=gPlayerStat(b.id).wins?a:b);
-  // 最佳單局
-  let bestRoundPlayer = null, bestRoundScore = -Infinity;
-  gData.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
-    if (v > bestRoundScore) { bestRoundScore=v; bestRoundPlayer=gData.players.find(p=>p.id===pid); }
-  }));
-  // 最長連勝
-  const maxStreak = gData.players.reduce((a,b) => gPlayerStat(a.id).streak>=gPlayerStat(b.id).streak?a:b);
-  const maxStreakVal = gPlayerStat(maxStreak.id).streak;
+  const { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal } = gameTopStats();
 
-  const cell = (icon, label, p, val) => `
+  const cell = (icon, label, p, val, valColor) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;display:flex;align-items:center;gap:9px">
       <div style="font-size:22px;flex-shrink:0">${icon}</div>
       <div style="min-width:0">
@@ -2948,13 +2981,14 @@ function renderGameStats() {
           <span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
         </div>
       </div>
-      <div style="margin-left:auto;font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;color:var(--orange)">${val}</div>
+      <div style="margin-left:auto;font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;color:${valColor||'var(--orange)'}">${val}</div>
     </div>`;
 
   cont.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px">
     ${cell('🏆','總分領先',leader,(totals[leader.id]>=0?'+':'')+totals[leader.id])}
     ${cell('🎖️','最多勝局',mostWins,gPlayerStat(mostWins.id).wins+' 勝')}
-    ${bestRoundPlayer?cell('⚡','最佳單局',bestRoundPlayer,'+'+bestRoundScore):''}
+    ${bestRoundPlayer?cell('⚡','最佳單局',bestRoundPlayer,'+'+bestRoundScore,'var(--success)'):''}
+    ${worstRoundPlayer&&worstRoundScore<0?cell('💸','單局輸最多',worstRoundPlayer,worstRoundScore,'var(--danger)'):''}
     ${maxStreakVal>=2?cell('🔥','最長連勝',maxStreak,maxStreakVal+' 連'):''}
   </div>`;
 }
