@@ -2583,30 +2583,42 @@ ${memoirSnippet}
 }
 
 // ─── AUTO UPDATE CHECK ────────────────────────────────────────────────────────
-const APP_VERSION = '20260515-001';
-async function checkAppUpdate() {
+// Clean URL if we just did a cache-bust redirect
+if (location.search.startsWith('?_r=')) {
+  history.replaceState(null, '', location.pathname);
+}
+
+async function autoUpdate() {
+  if (sessionStorage.getItem('_reloading')) {
+    // We just reloaded — save the fresh ETag and stop
+    sessionStorage.removeItem('_reloading');
+    try {
+      const res = await fetch(location.href, {method:'HEAD', cache:'no-store'});
+      const ver = res.headers.get('etag') || res.headers.get('last-modified');
+      if (ver) localStorage.setItem('_appVer', ver);
+    } catch(e) {}
+    return;
+  }
   try {
-    const res = await fetch(location.href + '?_=' + Date.now(), {cache: 'no-store'});
-    const text = await res.text();
-    const m = text.match(/APP_VERSION\s*=\s*'([^']+)'/);
-    if (m && m[1] !== APP_VERSION) showUpdateBanner();
+    const res = await fetch(location.href, {method:'HEAD', cache:'no-store'});
+    const ver = res.headers.get('etag') || res.headers.get('last-modified');
+    if (!ver) return;
+    const stored = localStorage.getItem('_appVer');
+    localStorage.setItem('_appVer', ver);
+    if (stored && stored !== ver) {
+      sessionStorage.setItem('_reloading', '1');
+      window.location.replace(location.pathname + '?_r=' + Date.now());
+    }
   } catch(e) {}
 }
-function showUpdateBanner() {
-  if (document.getElementById('updateBanner')) return;
-  const el = document.createElement('div');
-  el.id = 'updateBanner';
-  el.style.cssText = 'position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.35);white-space:nowrap';
-  el.innerHTML = '🔄 發現新版本 <button onclick="location.reload(true)" style="background:#E8682A;border:none;color:white;padding:5px 12px;border-radius:10px;font-size:12px;cursor:pointer;font-weight:600">立即更新</button>';
-  document.body.appendChild(el);
-}
+
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') checkAppUpdate();
+  if (document.visibilityState === 'visible') autoUpdate();
 });
 
 // ─── START ────────────────────────────────────────────────────────────────────
 init();
-checkAppUpdate();
+autoUpdate();
 </script>
 </body>
 </html>
