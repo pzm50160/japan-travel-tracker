@@ -3064,19 +3064,35 @@ function gameTopStats() {
   const sess = activeSession();
   if (!sess.players.length || !sess.rounds.length) return null;
   const totals = gTotals();
-  const leader = sess.players.reduce((a,b) => totals[a.id]>=totals[b.id]?a:b);
-  const mostWins = sess.players.reduce((a,b) => gPlayerStat(a.id).wins>=gPlayerStat(b.id).wins?a:b);
-  let bestRoundPlayer = null, bestRoundScore = -Infinity;
-  let worstRoundPlayer = null, worstRoundScore = Infinity;
-  sess.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
-    if (v > bestRoundScore) { bestRoundScore=v; bestRoundPlayer=sess.players.find(p=>p.id===pid); }
-    if (v < worstRoundScore) { worstRoundScore=v; worstRoundPlayer=sess.players.find(p=>p.id===pid); }
+  const pStats = sess.players.map(p => ({ p, st: gPlayerStat(p.id) }));
+
+  const maxTotal = Math.max(...sess.players.map(p => totals[p.id]));
+  const leaders = sess.players.filter(p => totals[p.id] === maxTotal);
+
+  const maxWins = Math.max(...pStats.map(x => x.st.wins));
+  const mostWinners = pStats.filter(x => x.st.wins === maxWins).map(x => x.p);
+
+  let bestRoundScore = -Infinity, worstRoundScore = Infinity;
+  sess.rounds.forEach(r => Object.values(r.scores).forEach(v => {
+    if (v > bestRoundScore) bestRoundScore = v;
+    if (v < worstRoundScore) worstRoundScore = v;
   }));
-  const maxStreak = sess.players.reduce((a,b) => gPlayerStat(a.id).streak>=gPlayerStat(b.id).streak?a:b);
-  const maxStreakVal = gPlayerStat(maxStreak.id).streak;
-  const maxLastStreak = sess.players.reduce((a,b) => gPlayerStat(a.id).lastStreak>=gPlayerStat(b.id).lastStreak?a:b);
-  const maxLastStreakVal = gPlayerStat(maxLastStreak.id).lastStreak;
-  return { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal, maxLastStreak, maxLastStreakVal };
+  const seen = new Set();
+  const bestRoundPlayers = [], worstRoundPlayers = [];
+  sess.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
+    const p = sess.players.find(x=>x.id===pid);
+    if (!p) return;
+    if (v === bestRoundScore && !seen.has('b'+pid)) { bestRoundPlayers.push(p); seen.add('b'+pid); }
+    if (v === worstRoundScore && !seen.has('w'+pid)) { worstRoundPlayers.push(p); seen.add('w'+pid); }
+  }));
+
+  const maxStreakVal = Math.max(...pStats.map(x => x.st.streak));
+  const maxStreakPlayers = pStats.filter(x => x.st.streak === maxStreakVal).map(x => x.p);
+
+  const maxLastStreakVal = Math.max(...pStats.map(x => x.st.lastStreak));
+  const maxLastStreakPlayers = pStats.filter(x => x.st.lastStreak === maxLastStreakVal).map(x => x.p);
+
+  return { totals, maxTotal, leaders, mostWinners, maxWins, bestRoundPlayers, bestRoundScore, worstRoundPlayers, worstRoundScore, maxStreakPlayers, maxStreakVal, maxLastStreakPlayers, maxLastStreakVal };
 }
 
 function renderGameStats() {
@@ -3084,28 +3100,29 @@ function renderGameStats() {
   if (!activeRounds().length || !activePlayers().length) { cont.innerHTML=''; return; }
   const top = gameTopStats();
   if (!top) { cont.innerHTML=''; return; }
-  const { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal, maxLastStreak, maxLastStreakVal } = top;
+  const { totals, maxTotal, leaders, mostWinners, maxWins, bestRoundPlayers, bestRoundScore, worstRoundPlayers, worstRoundScore, maxStreakPlayers, maxStreakVal, maxLastStreakPlayers, maxLastStreakVal } = top;
 
-  const cell = (icon, label, p, val, valColor) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;display:flex;align-items:center;gap:9px">
+  const cell = (icon, label, players, val, valColor) => {
+    const list = Array.isArray(players) ? players : [players];
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;display:flex;align-items:center;gap:9px">
       <div style="font-size:22px;flex-shrink:0">${icon}</div>
-      <div style="min-width:0">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:2px">${label}</div>
-        <div style="display:flex;align-items:center;gap:5px">
-          ${gAvHtml(p,20)}
-          <span style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name}</span>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:10px;color:var(--text2);margin-bottom:3px">${label}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${list.map(p=>`<div style="display:flex;align-items:center;gap:4px">${gAvHtml(p,18)}<span style="font-size:11px;font-weight:600">${p.name}</span></div>`).join('')}
         </div>
       </div>
-      <div style="margin-left:auto;font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;color:${valColor||'var(--orange)'}">${val}</div>
+      <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;color:${valColor||'var(--orange)'}">${val}</div>
     </div>`;
+  };
 
   cont.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px">
-    ${cell('🏆','總分領先',leader,(totals[leader.id]>=0?'+':'')+totals[leader.id])}
-    ${cell('🎖️','最多勝局',mostWins,gPlayerStat(mostWins.id).wins+' 勝')}
-    ${bestRoundPlayer?cell('⚡','最佳單局',bestRoundPlayer,'+'+bestRoundScore,'var(--success)'):''}
-    ${worstRoundPlayer&&worstRoundScore<0?cell('💸','單局輸最多',worstRoundPlayer,worstRoundScore,'var(--danger)'):''}
-    ${maxStreakVal>=2?cell('🔥','最長連勝',maxStreak,maxStreakVal+' 連'):''}
-    ${maxLastStreakVal>=2?cell('🪑','連續墊底',maxLastStreak,maxLastStreakVal+' 連','var(--danger)'):''}
+    ${cell('🏆','總分領先',leaders,(maxTotal>=0?'+':'')+maxTotal)}
+    ${cell('🎖️','最多勝局',mostWinners,maxWins+' 勝')}
+    ${bestRoundPlayers.length?cell('⚡','最佳單局',bestRoundPlayers,'+'+bestRoundScore,'var(--success)'):''}
+    ${worstRoundPlayers.length&&worstRoundScore<0?cell('💸','單局輸最多',worstRoundPlayers,worstRoundScore,'var(--danger)'):''}
+    ${maxStreakVal>=2?cell('🔥','最長連勝',maxStreakPlayers,maxStreakVal+' 連'):''}
+    ${maxLastStreakVal>=2?cell('🪑','連續墊底',maxLastStreakPlayers,maxLastStreakVal+' 連','var(--danger)'):''}
   </div>`;
 }
 
