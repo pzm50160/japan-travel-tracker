@@ -552,6 +552,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
   </div>
   <div id="gameMigrateBanner"></div>
+  <div id="gameSessionTabs"></div>
   <div id="gameLeaderboard"></div>
   <div id="gameStats"></div>
   <div id="gameRoundList"></div>
@@ -2255,32 +2256,46 @@ async function renderMemoir() {
       <div class="memoir-photo-strip">${photos.map(p=>`<img src="${p}" onclick="showPhotoModal('${p}')" loading="lazy">`).join('')}</div>`;
   }
 
-  // 牌局統計
-  if (gData.players.length && gData.rounds.length) {
-    const totals = gTotals();
-    const sortedPlayers = [...gData.players].sort((a,b)=>(totals[b.id]||0)-(totals[a.id]||0));
-    const { bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal } = gameTopStats();
+  // 牌局統計（多場次）
+  const allSessions = (gData.sessions||[]).filter(s => s.rounds?.length);
+  if (allSessions.length) {
+    const totalRounds = allSessions.reduce((a,s)=>a+s.rounds.length, 0);
+    const sessBlocks = allSessions.map(sess => {
+      // 臨時切換到此場次計算
+      const savedId = gData.activeSessionId;
+      gData.activeSessionId = sess.id;
+      const totals = gTotals();
+      const sorted = [...sess.players].sort((a,b)=>(totals[b.id]||0)-(totals[a.id]||0));
+      const top = gameTopStats();
+      gData.activeSessionId = savedId;
+      return `<div style="margin-bottom:12px">
+        <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:6px">${sess.name} · ${sess.rounds.length} 局</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+          ${sorted.map((p,i)=>{
+            const tot = totals[p.id]||0;
+            const savedId2 = gData.activeSessionId;
+            gData.activeSessionId = sess.id;
+            const stat = gPlayerStat(p.id);
+            gData.activeSessionId = savedId2;
+            return `<div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
+              ${gAvHtml(p,22)}
+              <span style="font-size:12px;font-weight:600;flex:1">${p.name}</span>
+              <span style="font-size:11px;color:var(--text2)">${stat.wins}勝${stat.losses}負</span>
+              <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${tot>=0?'var(--success)':'var(--danger)'}">${tot>=0?'+':''}${tot}</span>
+            </div>`;
+          }).join('')}
+        </div>
+        ${top ? `<div style="display:flex;gap:6px;font-size:10px;flex-wrap:wrap">
+          ${top.bestRoundPlayer?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">⚡ ${top.bestRoundPlayer.name} +${top.bestRoundScore}</span>`:''}
+          ${top.worstRoundPlayer&&top.worstRoundScore<0?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">💸 ${top.worstRoundPlayer.name} ${top.worstRoundScore}</span>`:''}
+          ${top.maxStreakVal>=2?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">🔥 ${top.maxStreak.name} ${top.maxStreakVal}連</span>`:''}
+        </div>` : ''}
+      </div>`;
+    }).join('<div style="border-top:1px solid var(--border);margin:8px 0"></div>');
     html += `<div class="card" style="margin-bottom:4px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px">🃏 大老二戰績</div>
-      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">共 ${gData.rounds.length} 局</div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
-        ${sortedPlayers.map((p,i)=>{
-          const tot = totals[p.id]||0;
-          const stat = gPlayerStat(p.id);
-          return `<div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
-            ${gAvHtml(p,24)}
-            <span style="font-size:12px;font-weight:600;flex:1">${p.name}</span>
-            <span style="font-size:11px;color:var(--text2)">${stat.wins}勝${stat.losses}負</span>
-            <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${tot>=0?'var(--success)':'var(--danger)'}">${tot>=0?'+':''}${tot}</span>
-          </div>`;
-        }).join('')}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;text-align:center">
-        ${bestRoundPlayer?`<div style="background:var(--bg);border-radius:8px;padding:7px 4px"><div style="font-size:16px">⚡</div><div style="color:var(--text2);margin:2px 0">最佳單局</div><div style="font-weight:600">${bestRoundPlayer.name}</div><div style="color:var(--success);font-weight:700">+${bestRoundScore}</div></div>`:''}
-        ${worstRoundPlayer&&worstRoundScore<0?`<div style="background:var(--bg);border-radius:8px;padding:7px 4px"><div style="font-size:16px">💸</div><div style="color:var(--text2);margin:2px 0">單局輸最多</div><div style="font-weight:600">${worstRoundPlayer.name}</div><div style="color:var(--danger);font-weight:700">${worstRoundScore}</div></div>`:''}
-        ${maxStreakVal>=2?`<div style="background:var(--bg);border-radius:8px;padding:7px 4px"><div style="font-size:16px">🔥</div><div style="color:var(--text2);margin:2px 0">最長連勝</div><div style="font-weight:600">${maxStreak.name}</div><div style="color:var(--orange);font-weight:700">${maxStreakVal} 連</div></div>`:''}
-      </div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px">🃏 大老二戰績 · 共 ${allSessions.length} 場 ${totalRounds} 局</div>
+      ${sessBlocks}
     </div>`;
   }
 
@@ -2781,19 +2796,31 @@ ${memoirSnippet}
 
 // ─── BIG TWO GAME ─────────────────────────────────────────────────────────────
 const G_COLORS = ['#E8682A','#3B82F6','#10B981','#EC4899','#8B5CF6','#F59E0B','#EF4444','#06B6D4'];
-let gData = { players: [], rounds: [] };
+let gData = { sessions: [], activeSessionId: null };
+
+function activeSession() {
+  if (!gData.sessions?.length) return { players: [], rounds: [] };
+  return gData.sessions.find(s => s.id === gData.activeSessionId) || gData.sessions[gData.sessions.length - 1];
+}
+function activePlayers() { return activeSession().players; }
+function activeRounds()  { return activeSession().rounds; }
 
 async function loadGData() {
   if (!state.tripId) return;
   const { data, error } = await sb.from('trips').select('game_data').eq('id', state.tripId).single();
   if (error) { showToast('牌局載入失敗：' + error.message); return; }
   const d = data?.game_data || {};
-  if (!d.rounds?.length && !d.players?.length) {
-    // 雲端空白 — 嘗試自動遷移本機舊資料
-    await migrateLocalGameData();
+  if (d.sessions?.length) {
+    gData.sessions = d.sessions;
+    gData.activeSessionId = d.activeSessionId || gData.sessions[gData.sessions.length - 1].id;
+  } else if (d.players?.length || d.rounds?.length) {
+    // 舊格式 → 自動轉換成場次
+    const sess = { id: 'sess_1', name: '第 1 場', date: d.rounds?.[0]?.date||'', players: d.players||[], rounds: d.rounds||[] };
+    gData.sessions = [sess];
+    gData.activeSessionId = sess.id;
+    await saveGData();
   } else {
-    gData.players = d.players || [];
-    gData.rounds  = d.rounds  || [];
+    await migrateLocalGameData();
   }
   renderGameMigrateBanner();
 }
@@ -2815,16 +2842,18 @@ function renderGameMigrateBanner() {
 async function forceUploadLocalGame() {
   const local = (() => { try { return JSON.parse(localStorage.getItem('bt_game') || '{}'); } catch(_) { return {}; } })();
   if (!local.players?.length && !local.rounds?.length) { showToast('本機沒有舊資料'); return; }
-  gData.players = local.players || [];
-  gData.rounds  = local.rounds  || [];
+  const sess = { id: 'sess_1', name: '第 1 場', date: local.rounds?.[0]?.date||'', players: local.players||[], rounds: local.rounds||[] };
+  gData.sessions = [sess];
+  gData.activeSessionId = sess.id;
   const { error } = await sb.from('trips')
-    .update({ game_data: { players: gData.players, rounds: gData.rounds } })
+    .update({ game_data: { sessions: gData.sessions, activeSessionId: gData.activeSessionId } })
     .eq('id', state.tripId);
   if (error) {
     showToast('⚠️ 上傳失敗：' + error.message);
   } else {
     localStorage.removeItem('bt_game');
     renderGameMigrateBanner();
+    renderGameSessionTabs();
     renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
     showToast('已上傳到雲端，其他人現在可以看到了 ✓');
   }
@@ -2834,10 +2863,11 @@ async function migrateLocalGameData() {
   try {
     const local = JSON.parse(localStorage.getItem('bt_game') || '{}');
     if (!local.players?.length && !local.rounds?.length) return;
-    gData.players = local.players || [];
-    gData.rounds  = local.rounds  || [];
+    const sess = { id: 'sess_1', name: '第 1 場', date: local.rounds?.[0]?.date||'', players: local.players||[], rounds: local.rounds||[] };
+    gData.sessions = [sess];
+    gData.activeSessionId = sess.id;
     const { error } = await sb.from('trips')
-      .update({ game_data: { players: gData.players, rounds: gData.rounds } })
+      .update({ game_data: { sessions: gData.sessions, activeSessionId: gData.activeSessionId } })
       .eq('id', state.tripId);
     if (error) {
       showToast('⚠️ 自動同步失敗：' + error.message);
@@ -2852,15 +2882,48 @@ async function migrateLocalGameData() {
 
 async function saveGData() {
   if (!state.tripId) return;
-  const { error } = await sb.from('trips').update({ game_data: { players: gData.players, rounds: gData.rounds } }).eq('id', state.tripId);
+  const { error } = await sb.from('trips').update({ game_data: { sessions: gData.sessions, activeSessionId: gData.activeSessionId } }).eq('id', state.tripId);
   if (error) showToast('⚠️ 儲存失敗：' + error.message);
 }
 
 async function refreshGameData() {
   document.getElementById('gameLeaderboard').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text2);font-size:13px">載入中…</div>';
+  gData = { sessions: [], activeSessionId: null };
   await loadGData();
+  renderGameSessionTabs();
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
   showToast('已重新整理');
+}
+
+async function newGameSession() {
+  const idx = gData.sessions.length + 1;
+  const name = `第 ${idx} 場`;
+  const sess = { id: 'sess_' + Date.now(), name, date: new Date().toISOString().split('T')[0], players: [], rounds: [] };
+  gData.sessions.push(sess);
+  gData.activeSessionId = sess.id;
+  await saveGData();
+  renderGameSessionTabs();
+  renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+  showToast('已開啟新場次：' + name);
+}
+
+function switchSession(id) {
+  gData.activeSessionId = id;
+  renderGameSessionTabs();
+  renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+}
+
+function renderGameSessionTabs() {
+  const el = document.getElementById('gameSessionTabs');
+  if (!el || !gData.sessions.length) { if (el) el.innerHTML=''; return; }
+  const tabs = gData.sessions.map(s => {
+    const isActive = s.id === gData.activeSessionId;
+    return `<button onclick="switchSession('${s.id}')" style="white-space:nowrap;padding:6px 14px;border-radius:20px;border:1px solid ${isActive?'var(--orange)':'var(--border)'};background:${isActive?'var(--orange)':'var(--surface)'};color:${isActive?'white':'var(--text)'};font-size:12px;font-weight:${isActive?'600':'400'};cursor:pointer;flex-shrink:0">${s.name} <span style="opacity:.7;font-size:10px">${s.rounds.length}局</span></button>`;
+  }).join('');
+  el.innerHTML = `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none">
+    ${tabs}
+    <button onclick="newGameSession()" style="white-space:nowrap;padding:6px 14px;border-radius:20px;border:1.5px dashed var(--orange);background:transparent;color:var(--orange);font-size:12px;cursor:pointer;flex-shrink:0">＋ 新場次</button>
+  </div>`;
 }
 
 // 顯示玩家頭像（支援旅程成員大頭照）
@@ -2868,28 +2931,27 @@ function gAvHtml(p, size=34) {
   const fs = Math.round(size * 0.45);
   if (p.avatar_url) return `<img src="${p.avatar_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0">`;
   if (p.emoji)      return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:${fs+4}px;flex-shrink:0">${p.emoji}</div>`;
-  const color = G_COLORS[gData.players.findIndex(x=>x.id===p.id) % G_COLORS.length];
+  const color = G_COLORS[activePlayers().findIndex(x=>x.id===p.id) % G_COLORS.length];
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:${fs}px;font-weight:700;color:white;flex-shrink:0">${p.name[0]}</div>`;
 }
 
 function gTotals() {
   const t = {};
-  gData.players.forEach(p => { t[p.id] = 0; });
-  gData.rounds.forEach(r => Object.entries(r.scores).forEach(([id,v]) => { if (id in t) t[id] += v; }));
+  activePlayers().forEach(p => { t[p.id] = 0; });
+  activeRounds().forEach(r => Object.entries(r.scores).forEach(([id,v]) => { if (id in t) t[id] += v; }));
   return t;
 }
 
 function gPlayerStat(pid) {
-  const rounds = gData.rounds.filter(r => pid in r.scores);
+  const rounds = activeRounds().filter(r => pid in r.scores);
   const wins   = rounds.filter(r => r.scores[pid] > 0).length;
   const losses = rounds.filter(r => r.scores[pid] < 0).length;
   const scores = rounds.map(r => r.scores[pid]);
   const best   = scores.length ? Math.max(...scores) : 0;
   const worst  = scores.length ? Math.min(...scores) : 0;
   const avg    = scores.length ? (scores.reduce((a,b)=>a+b,0) / scores.length) : 0;
-  // 連勝
   let streak = 0, cur = 0;
-  [...gData.rounds].forEach(r => {
+  [...activeRounds()].forEach(r => {
     if (!(pid in r.scores)) { cur=0; return; }
     if (r.scores[pid] > 0) { cur++; streak = Math.max(streak, cur); } else cur = 0;
   });
@@ -2901,6 +2963,7 @@ async function renderGame() {
   document.getElementById('gameStats').innerHTML = '';
   document.getElementById('gameRoundList').innerHTML = '';
   await loadGData();
+  renderGameSessionTabs();
   renderGameLeaderboard();
   renderGameStats();
   renderGameRoundList();
@@ -2909,7 +2972,8 @@ async function renderGame() {
 
 function renderGameLeaderboard() {
   const cont = document.getElementById('gameLeaderboard');
-  if (!gData.players.length) {
+  const sess = activeSession();
+  if (!sess.players.length) {
     cont.innerHTML = `<div class="g-board" style="text-align:center;padding:28px 16px">
       <div style="font-size:42px;margin-bottom:10px">🃏</div>
       <div style="font-size:14px;font-weight:600;margin-bottom:5px">還沒有玩家</div>
@@ -2920,14 +2984,14 @@ function renderGameLeaderboard() {
     return;
   }
   const totals = gTotals();
-  const sorted = [...gData.players].sort((a,b) => totals[b.id] - totals[a.id]);
+  const sorted = [...sess.players].sort((a,b) => totals[b.id] - totals[a.id]);
   const rankIcon = ['🥇','🥈','🥉'];
   cont.innerHTML = `<div class="g-board">
     <div class="g-board-header">
-      <span style="font-size:12px;font-weight:600">排行榜 · 共 ${gData.rounds.length} 局</span>
+      <span style="font-size:12px;font-weight:600">${sess.name} · 共 ${sess.rounds.length} 局</span>
       <div style="display:flex;gap:10px;align-items:center">
         <button onclick="openAddGamePlayer()" style="font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;font-weight:500">＋ 玩家</button>
-        ${gData.rounds.length ? `<button onclick="confirmResetGame()" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer">重置</button>` : ''}
+        ${sess.rounds.length ? `<button onclick="confirmResetGame()" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer">重置</button>` : ''}
       </div>
     </div>
     ${sorted.map((p,i) => {
@@ -2952,24 +3016,28 @@ function renderGameLeaderboard() {
 }
 
 function gameTopStats() {
+  const sess = activeSession();
+  if (!sess.players.length || !sess.rounds.length) return null;
   const totals = gTotals();
-  const leader = gData.players.reduce((a,b) => totals[a.id]>=totals[b.id]?a:b);
-  const mostWins = gData.players.reduce((a,b) => gPlayerStat(a.id).wins>=gPlayerStat(b.id).wins?a:b);
+  const leader = sess.players.reduce((a,b) => totals[a.id]>=totals[b.id]?a:b);
+  const mostWins = sess.players.reduce((a,b) => gPlayerStat(a.id).wins>=gPlayerStat(b.id).wins?a:b);
   let bestRoundPlayer = null, bestRoundScore = -Infinity;
   let worstRoundPlayer = null, worstRoundScore = Infinity;
-  gData.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
-    if (v > bestRoundScore) { bestRoundScore=v; bestRoundPlayer=gData.players.find(p=>p.id===pid); }
-    if (v < worstRoundScore) { worstRoundScore=v; worstRoundPlayer=gData.players.find(p=>p.id===pid); }
+  sess.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
+    if (v > bestRoundScore) { bestRoundScore=v; bestRoundPlayer=sess.players.find(p=>p.id===pid); }
+    if (v < worstRoundScore) { worstRoundScore=v; worstRoundPlayer=sess.players.find(p=>p.id===pid); }
   }));
-  const maxStreak = gData.players.reduce((a,b) => gPlayerStat(a.id).streak>=gPlayerStat(b.id).streak?a:b);
+  const maxStreak = sess.players.reduce((a,b) => gPlayerStat(a.id).streak>=gPlayerStat(b.id).streak?a:b);
   const maxStreakVal = gPlayerStat(maxStreak.id).streak;
   return { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal };
 }
 
 function renderGameStats() {
   const cont = document.getElementById('gameStats');
-  if (!gData.rounds.length || !gData.players.length) { cont.innerHTML=''; return; }
-  const { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal } = gameTopStats();
+  if (!activeRounds().length || !activePlayers().length) { cont.innerHTML=''; return; }
+  const top = gameTopStats();
+  if (!top) { cont.innerHTML=''; return; }
+  const { totals, leader, mostWins, bestRoundPlayer, bestRoundScore, worstRoundPlayer, worstRoundScore, maxStreak, maxStreakVal } = top;
 
   const cell = (icon, label, p, val, valColor) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;display:flex;align-items:center;gap:9px">
@@ -2995,13 +3063,14 @@ function renderGameStats() {
 
 function renderGameRoundList() {
   const cont = document.getElementById('gameRoundList');
-  if (!gData.rounds.length) { cont.innerHTML=''; return; }
-  const rounds = [...gData.rounds].reverse();
+  const sess = activeSession();
+  if (!sess.rounds.length) { cont.innerHTML=''; return; }
+  const rounds = [...sess.rounds].reverse();
   cont.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">對局記錄</div>` +
     rounds.map((r, ri) => {
-      const idx = gData.rounds.length - ri;
+      const idx = sess.rounds.length - ri;
       const entries = Object.entries(r.scores).sort((a,b)=>b[1]-a[1]);
-      const winners = entries.filter(([,v])=>v>0).map(([pid])=>gData.players.find(p=>p.id===pid)?.name).filter(Boolean);
+      const winners = entries.filter(([,v])=>v>0).map(([pid])=>sess.players.find(p=>p.id===pid)?.name).filter(Boolean);
       return `<div class="g-round-card">
         <div class="g-round-hdr">
           <span style="font-size:12px;font-weight:600">第 ${idx} 局${winners.length?' · '+winners.join('、')+' 贏':''}</span>
@@ -3013,7 +3082,7 @@ function renderGameRoundList() {
         </div>
         <div class="g-round-body">
           ${entries.map(([pid,v]) => {
-            const p = gData.players.find(x=>x.id===pid);
+            const p = sess.players.find(x=>x.id===pid);
             if (!p) return '';
             const cls = v>0?'g-score-pos':v<0?'g-score-neg':'g-score-zero';
             return `<div class="g-round-cell">
@@ -3031,8 +3100,7 @@ function renderGameRoundList() {
 
 function openAddGamePlayer() {
   document.getElementById('gamePlayerName').value = '';
-  // 顯示旅程成員（尚未加入遊戲的）
-  const added = new Set(gData.players.map(p=>p.ref_id||p.id));
+  const added = new Set(activePlayers().map(p=>p.ref_id||p.id));
   const available = (state.members||[]).filter(m => !added.has(m.id));
   document.getElementById('gameTripMemberList').innerHTML = available.length
     ? `<div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:500">旅程成員</div>
@@ -3054,8 +3122,9 @@ function openAddGamePlayer() {
 async function addGamePlayerFromMember(memberId) {
   const m = (state.members||[]).find(x=>x.id===memberId);
   if (!m) return;
-  if (gData.players.find(p=>p.ref_id===memberId)) { showToast('已加入'); return; }
-  gData.players.push({ id:'g'+Date.now(), ref_id:m.id, name:m.name, avatar_url:m.avatar_url||null, emoji:m.emoji });
+  const sess = activeSession();
+  if (sess.players.find(p=>p.ref_id===memberId)) { showToast('已加入'); return; }
+  sess.players.push({ id:'g'+Date.now(), ref_id:m.id, name:m.name, avatar_url:m.avatar_url||null, emoji:m.emoji });
   await saveGData();
   document.getElementById('gamePlayerModal').classList.remove('open');
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
@@ -3065,8 +3134,9 @@ async function addGamePlayerFromMember(memberId) {
 async function confirmAddGamePlayer() {
   const name = document.getElementById('gamePlayerName').value.trim();
   if (!name) { showToast('請輸入名稱'); return; }
-  if (gData.players.find(p=>p.name===name)) { showToast('已有同名玩家'); return; }
-  gData.players.push({ id:'g'+Date.now(), name });
+  const sess = activeSession();
+  if (sess.players.find(p=>p.name===name)) { showToast('已有同名玩家'); return; }
+  sess.players.push({ id:'g'+Date.now(), name });
   await saveGData();
   document.getElementById('gamePlayerModal').classList.remove('open');
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
@@ -3074,18 +3144,20 @@ async function confirmAddGamePlayer() {
 
 async function removeGamePlayer(id) {
   if (!confirm('確定移除這位玩家？該玩家的所有記錄也會一併移除。')) return;
-  gData.players = gData.players.filter(p=>p.id!==id);
-  gData.rounds.forEach(r=>{ delete r.scores[id]; });
+  const sess = activeSession();
+  sess.players = sess.players.filter(p=>p.id!==id);
+  sess.rounds.forEach(r=>{ delete r.scores[id]; });
   await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
 
 let editingRoundId = null;
 function openGameRoundModal(roundId) {
-  if (!gData.players.length) { showToast('請先新增玩家'); return; }
+  const sess = activeSession();
+  if (!sess.players.length) { showToast('請先新增玩家'); return; }
   editingRoundId = roundId||null;
-  const round = roundId ? gData.rounds.find(r=>r.id===roundId) : null;
+  const round = roundId ? sess.rounds.find(r=>r.id===roundId) : null;
   document.getElementById('gameRoundModalTitle').textContent = roundId ? '✏️ 編輯' : '📝 記錄一局';
-  document.getElementById('gameRoundInputs').innerHTML = gData.players.map(p => {
+  document.getElementById('gameRoundInputs').innerHTML = sess.players.map(p => {
     const val = round ? (round.scores[p.id]||0) : 0;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
       ${gAvHtml(p,34)}
@@ -3108,37 +3180,42 @@ function adjustGScore(pid, delta) {
 }
 function updateGSum() {
   let sum = 0;
-  gData.players.forEach(p => { sum += parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
+  activePlayers().forEach(p => { sum += parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
   const el = document.getElementById('gameRoundSum');
   el.textContent = (sum>0?'+':'')+sum;
   el.style.color = sum===0 ? 'var(--success)' : 'var(--danger)';
 }
 function closeGameRoundModal() { document.getElementById('gameRoundModal').classList.remove('open'); }
 async function saveGameRound() {
+  const sess = activeSession();
   const scores = {};
-  gData.players.forEach(p => { scores[p.id] = parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
+  sess.players.forEach(p => { scores[p.id] = parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
   if (editingRoundId) {
-    const r = gData.rounds.find(r=>r.id===editingRoundId);
+    const r = sess.rounds.find(r=>r.id===editingRoundId);
     if (r) r.scores = scores;
   } else {
     const today = new Date().toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'});
-    gData.rounds.push({ id:'r'+Date.now(), date:today, scores });
+    sess.rounds.push({ id:'r'+Date.now(), date:today, scores });
   }
   const msg = editingRoundId ? '已更新' : '記錄完成！';
   closeGameRoundModal();
   await saveGData();
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+  renderGameSessionTabs();
   showToast(msg);
 }
 async function deleteGameRound(id) {
   if (!confirm('確定刪除這局？')) return;
-  gData.rounds = gData.rounds.filter(r=>r.id!==id);
+  const sess = activeSession();
+  sess.rounds = sess.rounds.filter(r=>r.id!==id);
   await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+  renderGameSessionTabs();
 }
 async function confirmResetGame() {
-  if (!confirm('確定重置所有對局記錄？玩家名單保留，分數歸零。')) return;
-  gData.rounds = [];
+  if (!confirm('確定重置此場次所有對局記錄？玩家名單保留，分數歸零。')) return;
+  activeSession().rounds = [];
   await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+  renderGameSessionTabs();
 }
 
 // ─── AUTO UPDATE CHECK ────────────────────────────────────────────────────────
