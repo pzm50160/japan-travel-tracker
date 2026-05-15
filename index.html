@@ -6,6 +6,29 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="日本記帳">
+<script>
+(function(){
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#E8682A';
+  const r = 100;
+  ctx.beginPath();
+  ctx.moveTo(r,0);ctx.lineTo(512-r,0);ctx.quadraticCurveTo(512,0,512,r);
+  ctx.lineTo(512,512-r);ctx.quadraticCurveTo(512,512,512-r,512);
+  ctx.lineTo(r,512);ctx.quadraticCurveTo(0,512,0,512-r);
+  ctx.lineTo(0,r);ctx.quadraticCurveTo(0,0,r,0);
+  ctx.fill();
+  ctx.font = '320px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('✈️', 256, 270);
+  const link = document.createElement('link');
+  link.rel = 'apple-touch-icon';
+  link.href = c.toDataURL('image/png');
+  document.head.appendChild(link);
+})();
+</script>
 <title>日本旅遊記帳 ✈️</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -408,7 +431,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 </nav>
 
 <div class="page active" id="page-home">
-  <div class="hero-photos">
+  <div class="hero-photos" id="heroPhotos">
     <div class="photo-card">🗻</div><div class="photo-card">⛩️</div><div class="photo-card">🌸</div>
   </div>
   <div class="trip-title" id="tripTitle">載入中...</div>
@@ -692,6 +715,7 @@ function showApp() {
   document.getElementById('mainNav').style.display = 'flex';
   document.getElementById('mainFab').style.display = 'flex';
   renderHome();
+  startPolling();
 }
 function showTripScreen() {
   document.getElementById('tripScreen').classList.add('show');
@@ -1088,16 +1112,12 @@ function setSyncDot(status) {
 
 function subscribeRealtime() {
   if (realtimeSub) sb.removeChannel(realtimeSub);
-  realtimeSub = sb.channel('trip_' + state.tripId)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `trip_id=eq.${state.tripId}` }, async (payload) => {
+  realtimeSub = sb.channel('trip_' + state.tripId + '_' + Date.now())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `trip_id=eq.${state.tripId}` }, async () => {
       setSyncDot('syncing');
       await loadAll();
       setSyncDot('');
-      const cur = document.querySelector('.page.active')?.id;
-      if (cur==='page-home') renderHome();
-      else if (cur==='page-records') renderRecords();
-      else if (cur==='page-split') renderSplit();
-      else if (cur==='page-stats') renderStats();
+      refreshCurrentPage();
       showToast('✨ 資料已同步');
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'members', filter: `trip_id=eq.${state.tripId}` }, async () => {
@@ -1108,10 +1128,66 @@ function subscribeRealtime() {
     .subscribe();
 }
 
+function refreshCurrentPage() {
+  const cur = document.querySelector('.page.active')?.id;
+  if (cur==='page-home') renderHome();
+  else if (cur==='page-records') renderRecords();
+  else if (cur==='page-split') renderSplit();
+  else if (cur==='page-stats') renderStats();
+}
+
+// 頁面重新顯示時重新訂閱（從背景切回）
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && state.tripId) {
+    setSyncDot('syncing');
+    await loadAll();
+    setSyncDot('');
+    refreshCurrentPage();
+    subscribeRealtime();
+  }
+});
+
+// ─── SMART POLLING ───────────────────────────────────────────────────────────
+// 每 8 秒比對遠端 fingerprint，只有真的有差異才 reload + 渲染
+let pollTimer = null;
+let lastSyncFp = '';
+
+function calcFingerprint(rows) {
+  return rows.map(e => e.id + '|' + (e.amount||0) + '|' + (e.photo_url||'')).sort().join(';');
+}
+
+async function checkForChanges() {
+  if (!state.tripId || document.visibilityState !== 'visible') return;
+  try {
+    const { data } = await sb.from('expenses')
+      .select('id,amount,photo_url')
+      .eq('trip_id', state.tripId);
+    if (!data) return;
+    const remoteFp = calcFingerprint(data);
+    if (remoteFp !== lastSyncFp) {
+      lastSyncFp = remoteFp;
+      setSyncDot('syncing');
+      await loadAll();
+      lastSyncFp = calcFingerprint(state.expenses); // 同步後更新
+      setSyncDot('');
+      refreshCurrentPage();
+      showToast('✨ 資料已同步');
+    }
+  } catch(e) {}
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  // 初始化 fingerprint
+  lastSyncFp = calcFingerprint(state.expenses);
+  pollTimer = setInterval(checkForChanges, 8000);
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const memberOf = id => state.members.find(m=>m.id===id) || {emoji:'👤',name:'?',id};
 const fmtJPY = n => '¥' + Math.round(n).toLocaleString();
 const fmtTWD = n => 'NT$' + Math.round(n * (state.trip?.rate || 0.206)).toLocaleString();
+const fmtCur = n => state.currency === 'TWD' ? 'NT$' + Math.round(n).toLocaleString() : fmtJPY(n);
 // 取得台幣金額（優先用已存的 amount_twd，否則換算）
 const toTWD = e => e.amount_twd || (e.currency==='TWD' ? e.amount : Math.round(e.amount * (state.trip?.rate||0.206)));
 const memberAvatar = (m) => m.avatar_url
@@ -1180,15 +1256,48 @@ function goPage(id, btn) {
   else if(id==='settings')renderSettings();
 }
 
+// ─── COVER PHOTOS ────────────────────────────────────────────────────────────
+const DEFAULT_COVERS = ['🗻', '⛩️', '🌸'];
+let coverEditIndex = 0;
+
+function renderCoverPhotos() {
+  const covers = state.trip?.cover_photos || DEFAULT_COVERS;
+  document.getElementById('heroPhotos').innerHTML = covers.map((src, i) => {
+    const inner = src && src.startsWith('data:')
+      ? `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:7px">`
+      : `<span>${src || DEFAULT_COVERS[i]}</span>`;
+    return `<div class="photo-card" onclick="openCoverPicker(${i})" title="點擊換圖">${inner}<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.35);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;color:white">✎</div></div>`;
+  }).join('') + '<input type="file" id="coverPhotoInput" accept="image/*" style="display:none" onchange="handleCoverPhoto(this.files[0])">';
+}
+
+function openCoverPicker(idx) {
+  coverEditIndex = idx;
+  document.getElementById('coverPhotoInput').value = '';
+  document.getElementById('coverPhotoInput').click();
+}
+
+function handleCoverPhoto(file) {
+  if (!file) return;
+  openCropperWith(file, async dataUrl => {
+    const covers = [...(state.trip?.cover_photos || DEFAULT_COVERS)];
+    covers[coverEditIndex] = dataUrl;
+    await sb.from('trips').update({ cover_photos: covers }).eq('id', state.tripId);
+    state.trip.cover_photos = covers;
+    renderCoverPhotos();
+    showToast('封面已更新！');
+  });
+}
+
 // ─── HOME ──────────────────────────────────────────────────────────────────────
 function renderHome() {
   if (!state.trip) return;
   const t = state.trip;
+  renderCoverPhotos();
   document.getElementById('tripTitle').textContent = t.name;
   const today = new Date().toISOString().split('T')[0];
   const start = new Date(t.start_date), end = new Date(t.end_date), now = new Date();
-  const day = Math.max(1, Math.min(Math.ceil((now-start)/86400000)+1, Math.ceil((end-start)/86400000)));
-  const total = Math.ceil((end-start)/86400000);
+  const total = Math.ceil((end-start)/86400000) + 1;
+  const day = Math.max(1, Math.min(Math.ceil((now-start)/86400000)+1, total));
   document.getElementById('dayNum').textContent = 'Day ' + day;
   document.getElementById('daySub').textContent = '共 ' + total + ' 天';
   const todayExp = state.expenses.filter(e=>e.date===today);
@@ -1367,12 +1476,22 @@ function openAddModal() {
   document.getElementById('mStore').value = '';
   document.getElementById('amtConvert').textContent = '';
   document.getElementById('photoPreviewWrap').style.display = 'none';
+  // 新增模式：所有欄位解鎖
+  ['mName','mAmt','mDate','mStore'].forEach(f => { document.getElementById(f).disabled = false; });
+  document.getElementById('modalPayerSelect').style.pointerEvents = '';
+  document.getElementById('catSelect').style.pointerEvents = '';
+  document.getElementById('paySelect').style.pointerEvents = '';
+  document.querySelectorAll('.split-mode-btn').forEach(b => b.disabled = false);
+  document.getElementById('saveBtn').style.display = '';
+  const notice = document.getElementById('ownerNotice');
+  if (notice) notice.style.display = 'none';
   renderModalSelects();
   setCurrency('JPY');
   document.getElementById('addModal').classList.add('open');
 }
 function openEditModal(id) {
   const e = state.expenses.find(x=>x.id===id); if(!e)return;
+  const isOwner = !e.created_by || e.created_by === state.myMemberId;
   state.editId = id;
   state.selectedPayer = e.payer_id;
   state.selectedCat = e.cat; state.selectedPay = e.pay;
@@ -1381,24 +1500,46 @@ function openEditModal(id) {
   state.currency = e.currency || 'JPY';
   state.pendingPhotoBase64 = null;
   state.pendingPhotoUrl = e.photo_url || null;
-  document.getElementById('modalTitle').textContent = '編輯花費';
+  document.getElementById('modalTitle').textContent = isOwner ? '編輯花費' : '查看花費';
   document.getElementById('mName').value = e.name;
   document.getElementById('mAmt').value = e.currency==='TWD' ? (e.amount_original||e.amount) : e.amount;
   document.getElementById('mDate').value = e.date;
   document.getElementById('mStore').value = e.store||'';
-  // photo preview
   if (e.photo_url) {
     document.getElementById('photoPreview').src = e.photo_url;
     document.getElementById('photoPreviewWrap').style.display = 'block';
   } else {
     document.getElementById('photoPreviewWrap').style.display = 'none';
   }
+  // 非發起人：鎖定金額/分攤欄位，只能新增照片
+  const lockFields = ['mName','mAmt','mDate','mStore'];
+  lockFields.forEach(f => { document.getElementById(f).disabled = !isOwner; });
+  document.getElementById('modalPayerSelect').style.pointerEvents = isOwner ? '' : 'none';
+  document.getElementById('catSelect').style.pointerEvents = isOwner ? '' : 'none';
+  document.getElementById('paySelect').style.pointerEvents = isOwner ? '' : 'none';
+  document.querySelectorAll('.split-mode-btn').forEach(b => b.disabled = !isOwner);
+  document.getElementById('saveBtn').style.display = isOwner ? '' : 'none';
+  // 提示非發起人
+  let notice = document.getElementById('ownerNotice');
+  if (!notice) {
+    notice = document.createElement('div');
+    notice.id = 'ownerNotice';
+    notice.style.cssText = 'font-size:11px;color:var(--orange);background:var(--orange-light);padding:8px 11px;border-radius:6px;margin-bottom:10px;border:1px solid #F5C9A8';
+    document.querySelector('#addModal .modal').insertBefore(notice, document.querySelector('#addModal .btn-row'));
+  }
+  if (!isOwner) {
+    const creator = state.members.find(m=>m.id===e.created_by);
+    notice.textContent = `此筆花費由 ${creator?.name||'其他人'} 記錄，你只能新增照片。`;
+    notice.style.display = 'block';
+  } else {
+    notice.style.display = 'none';
+  }
   renderModalSelects();
   setCurrency(state.currency);
   document.getElementById('addModal').classList.add('open');
 }
 function renderModalSelects() {
-  document.getElementById('modalPayerSelect').innerHTML = state.members.map(m=>'<div class="av-opt '+(m.id===state.selectedPayer?'sel':'')+'" onclick="selPayer(\''+m.id+'\')">'+m.emoji+'<div class="av-check">✓</div></div>').join('');
+  document.getElementById('modalPayerSelect').innerHTML = state.members.map(m=>'<div class="av-opt '+(m.id===state.selectedPayer?'sel':'')+'" onclick="selPayer(\''+m.id+'\')" style="overflow:hidden">'+memberAvatar(m)+'<div class="av-check">✓</div></div>').join('');
   document.getElementById('catSelect').innerHTML = CATS.map(c=>'<button class="select-opt '+(c===state.selectedCat?'sel':'')+'" onclick="selCat(\''+c+'\')">'+c+'</button>').join('');
   document.getElementById('paySelect').innerHTML = PAYS.map(p=>'<button class="select-opt '+(p===state.selectedPay?'sel':'')+'" onclick="selPay(\''+p+'\')">'+p+'</button>').join('');
   document.querySelectorAll('.split-mode-btn').forEach((b,i)=>{const modes=['equal','custom','payer'];b.classList.toggle('active',modes[i]===state.splitMode);});
@@ -1423,18 +1564,18 @@ function renderParticipants(){
   if(state.splitMode==='payer'){cont.innerHTML='<div style="font-size:11px;color:var(--text2);padding:7px 0">此筆費用僅計入付款人，不分攤給其他人。</div>';checkEl.style.display='none';return;}
   if(state.splitMode==='equal'){
     const pp=Object.entries(state.participants).filter(([,v])=>v).map(([k])=>k);const each=pp.length?amt/pp.length:0;
-    cont.innerHTML=state.members.map(m=>{const checked=!!state.participants[m.id];return '<div class="participant-row"><div class="participant-check '+(checked?'checked':'')+'" onclick="togglePart(\''+m.id+'\')">'+( checked?'<svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polyline points="20,6 9,17 4,12"/></svg>':'')+'</div><div class="participant-av">'+m.emoji+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div style="font-size:11px;color:var(--text3);font-family:\'DM Mono\',monospace">'+(checked&&each>0?fmtJPY(each):'-')+'</div></div>';}).join('');
+    cont.innerHTML=state.members.map(m=>{const checked=!!state.participants[m.id];return '<div class="participant-row"><div class="participant-check '+(checked?'checked':'')+'" onclick="togglePart(\''+m.id+'\')">'+( checked?'<svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polyline points="20,6 9,17 4,12"/></svg>':'')+'</div><div class="participant-av">'+memberAvatar(m)+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div style="font-size:11px;color:var(--text3);font-family:\'DM Mono\',monospace">'+(checked&&each>0?fmtCur(each):'-')+'</div></div>';}).join('');
     checkEl.style.display='none';return;
   }
   const customTotal=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);
   const ok=Math.abs(customTotal-amt)<1;
-  cont.innerHTML=state.members.map(m=>{const val=state.participants[m.id]||0;return '<div class="participant-row"><div class="participant-av">'+m.emoji+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div class="participant-share"><input type="number" value="'+(val||'')+'" placeholder="0" min="0" oninput="setCustomShare(\''+m.id+'\',this.value)"></div></div>';}).join('');
+  cont.innerHTML=state.members.map(m=>{const val=state.participants[m.id]||0;return '<div class="participant-row"><div class="participant-av">'+memberAvatar(m)+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div class="participant-share"><input type="number" value="'+(val||'')+'" placeholder="0" min="0" oninput="setCustomShare(\''+m.id+'\',this.value)"></div></div>';}).join('');
   checkEl.style.display='flex';
   checkEl.className='split-total-check '+(ok?'ok':'err');
-  document.getElementById('splitTotalVal').textContent=fmtJPY(customTotal)+' / '+fmtJPY(amt);
+  document.getElementById('splitTotalVal').textContent=fmtCur(customTotal)+' / '+fmtCur(amt);
 }
 function togglePart(id){state.participants[id]=!state.participants[id];renderParticipants();}
-function setCustomShare(id,val){state.participants[id]=parseFloat(val)||0;const amt=parseFloat(document.getElementById('mAmt').value)||0;const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);const ok=Math.abs(total-amt)<1;document.getElementById('splitTotalCheck').className='split-total-check '+(ok?'ok':'err');document.getElementById('splitTotalVal').textContent=fmtJPY(total)+' / '+fmtJPY(amt);}
+function setCustomShare(id,val){state.participants[id]=parseFloat(val)||0;const amt=parseFloat(document.getElementById('mAmt').value)||0;const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);const ok=Math.abs(total-amt)<1;document.getElementById('splitTotalCheck').className='split-total-check '+(ok?'ok':'err');document.getElementById('splitTotalVal').textContent=fmtCur(total)+' / '+fmtCur(amt);}
 function closeModal(){document.getElementById('addModal').classList.remove('open');}
 
 async function saveExpense() {
@@ -1467,9 +1608,14 @@ async function saveExpense() {
       photo_url: photoUrl,
     };
     if (state.editId) {
-      await sb.from('expenses').update(exp).eq('id', state.editId);
+      // 非發起人只能更新照片
+      const existing = state.expenses.find(x=>x.id===state.editId);
+      const isOwner = !existing?.created_by || existing.created_by === state.myMemberId;
+      const updatePayload = isOwner ? exp : { photo_url: photoUrl };
+      await sb.from('expenses').update(updatePayload).eq('id', state.editId);
     } else {
       exp.id = 'exp_' + Date.now();
+      exp.created_by = state.myMemberId;
       await sb.from('expenses').insert(exp);
     }
     await loadAll();
