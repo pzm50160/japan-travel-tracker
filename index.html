@@ -2298,9 +2298,9 @@ async function renderMemoir() {
           }).join('')}
         </div>
         ${top ? `<div style="display:flex;gap:6px;font-size:10px;flex-wrap:wrap">
-          ${top.bestRoundPlayer?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">⚡ ${top.bestRoundPlayer.name} +${top.bestRoundScore}</span>`:''}
-          ${top.worstRoundPlayer&&top.worstRoundScore<0?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">💸 ${top.worstRoundPlayer.name} ${top.worstRoundScore}</span>`:''}
-          ${top.maxStreakVal>=2?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">🔥 ${top.maxStreak.name} ${top.maxStreakVal}連</span>`:''}
+          ${top.bestRoundPlayers?.length?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">⚡ ${top.bestRoundPlayers.map(p=>p.name).join('、')} +${top.bestRoundScore}</span>`:''}
+          ${top.worstRoundPlayers?.length&&top.worstRoundScore<0?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">💸 ${top.worstRoundPlayers.map(p=>p.name).join('、')} ${top.worstRoundScore}</span>`:''}
+          ${top.maxStreakVal>=2?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">🔥 ${top.maxStreakPlayers.map(p=>p.name).join('、')} ${top.maxStreakVal}連</span>`:''}
         </div>` : ''}
       </div>`;
     }).join('<div style="border-top:1px solid var(--border);margin:8px 0"></div>');
