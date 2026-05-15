@@ -2268,47 +2268,69 @@ async function renderMemoir() {
   }
 
   // 牌局統計（多場次）
-  const allSessions = (gData.sessions||[]).filter(s => s.rounds?.length);
-  if (allSessions.length) {
-    const totalRounds = allSessions.reduce((a,s)=>a+s.rounds.length, 0);
-    const sessBlocks = allSessions.map(sess => {
-      // 臨時切換到此場次計算
-      const savedId = gData.activeSessionId;
-      gData.activeSessionId = sess.id;
-      const totals = gTotals();
-      const sorted = [...sess.players].sort((a,b)=>(totals[b.id]||0)-(totals[a.id]||0));
-      const top = gameTopStats();
-      gData.activeSessionId = savedId;
-      return `<div style="margin-bottom:12px">
-        <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:6px">${sess.name} · ${sess.rounds.length} 局</div>
-        <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
-          ${sorted.map((p,i)=>{
-            const tot = totals[p.id]||0;
-            const savedId2 = gData.activeSessionId;
-            gData.activeSessionId = sess.id;
-            const stat = gPlayerStat(p.id);
-            gData.activeSessionId = savedId2;
-            return `<div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
-              ${gAvHtml(p,22)}
-              <span style="font-size:12px;font-weight:600;flex:1">${p.name}</span>
-              <span style="font-size:11px;color:var(--text2)">${stat.wins}勝${stat.losses}負</span>
-              <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${tot>=0?'var(--success)':'var(--danger)'}">${tot>=0?'+':''}${tot}</span>
-            </div>`;
-          }).join('')}
-        </div>
-        ${top ? `<div style="display:flex;gap:6px;font-size:10px;flex-wrap:wrap">
-          ${top.bestRoundPlayers?.length?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">⚡ ${top.bestRoundPlayers.map(p=>p.name).join('、')} +${top.bestRoundScore}</span>`:''}
-          ${top.worstRoundPlayers?.length&&top.worstRoundScore<0?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">💸 ${top.worstRoundPlayers.map(p=>p.name).join('、')} ${top.worstRoundScore}</span>`:''}
-          ${top.maxStreakVal>=2?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">🔥 ${top.maxStreakPlayers.map(p=>p.name).join('、')} ${top.maxStreakVal}連</span>`:''}
-        </div>` : ''}
+  try {
+    const allSessions = (gData.sessions||[]).filter(s => s.rounds?.length);
+    if (allSessions.length) {
+      const totalRounds = allSessions.reduce((a,s)=>a+s.rounds.length, 0);
+      const sessBlocks = allSessions.map(sess => {
+        // 計算此場次的分數（直接用 sess，不動 gData.activeSessionId）
+        const totals = {};
+        sess.players.forEach(p => { totals[p.id] = 0; });
+        sess.rounds.forEach(r => Object.entries(r.scores).forEach(([id,v]) => { if (id in totals) totals[id] += v; }));
+        const sorted = [...sess.players].sort((a,b)=>(totals[b.id]||0)-(totals[a.id]||0));
+
+        const playerRows = sorted.map((p,i) => {
+          const tot = totals[p.id]||0;
+          const pRounds = sess.rounds.filter(r => p.id in r.scores);
+          const wins = pRounds.filter(r => r.scores[p.id] > 0).length;
+          const losses = pRounds.filter(r => r.scores[p.id] < 0).length;
+          const ci = sess.players.findIndex(x=>x.id===p.id);
+          const color = G_COLORS[ci >= 0 ? ci % G_COLORS.length : 0];
+          const av = p.avatar_url
+            ? `<img src="${p.avatar_url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+            : p.emoji
+              ? `<div style="width:22px;height:22px;border-radius:50%;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0">${p.emoji}</div>`
+              : `<div style="width:22px;height:22px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:white;flex-shrink:0">${p.name[0]}</div>`;
+          return `<div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
+            ${av}
+            <span style="font-size:12px;font-weight:600;flex:1">${p.name}</span>
+            <span style="font-size:11px;color:var(--text2)">${wins}勝${losses}負</span>
+            <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${tot>=0?'var(--success)':'var(--danger)'}">${tot>=0?'+':''}${tot}</span>
+          </div>`;
+        }).join('');
+
+        // 亮點
+        let bestScore = -Infinity, worstScore = Infinity, maxStrk = 0;
+        let bestNames = [], worstNames = [];
+        sess.rounds.forEach(r => Object.entries(r.scores).forEach(([pid,v]) => {
+          if (v > bestScore) { bestScore=v; bestNames=[]; }
+          if (v === bestScore) { const p=sess.players.find(x=>x.id===pid); if(p&&!bestNames.includes(p.name)) bestNames.push(p.name); }
+          if (v < worstScore) { worstScore=v; worstNames=[]; }
+          if (v === worstScore) { const p=sess.players.find(x=>x.id===pid); if(p&&!worstNames.includes(p.name)) worstNames.push(p.name); }
+        }));
+        sess.players.forEach(p => {
+          let cur=0, stk=0;
+          sess.rounds.forEach(r => { if(r.scores[p.id]>0){cur++;stk=Math.max(stk,cur);}else cur=0; });
+          if(stk>maxStrk) maxStrk=stk;
+        });
+
+        return `<div style="margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--orange);margin-bottom:6px">${sess.name} · ${sess.rounds.length} 局</div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">${playerRows}</div>
+          <div style="display:flex;gap:6px;font-size:10px;flex-wrap:wrap">
+            ${bestNames.length?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">⚡ ${bestNames.join('、')} +${bestScore}</span>`:''}
+            ${worstNames.length&&worstScore<0?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">💸 ${worstNames.join('、')} ${worstScore}</span>`:''}
+            ${maxStrk>=2?`<span style="background:var(--bg);border-radius:6px;padding:3px 8px">🔥 ${maxStrk}連勝</span>`:''}
+          </div>
+        </div>`;
+      }).join('<div style="border-top:1px solid var(--border);margin:8px 0"></div>');
+      html += `<div class="card" style="margin-bottom:4px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:10px">🃏 大老二戰績 · 共 ${allSessions.length} 場 ${totalRounds} 局</div>
+        ${sessBlocks}
       </div>`;
-    }).join('<div style="border-top:1px solid var(--border);margin:8px 0"></div>');
-    html += `<div class="card" style="margin-bottom:4px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:10px">🃏 大老二戰績 · 共 ${allSessions.length} 場 ${totalRounds} 局</div>
-      ${sessBlocks}
-    </div>`;
-  }
+    }
+  } catch(e) { /* 牌局資料異常時不影響回憶錄 */ }
 
   // AI 回憶錄區塊
   html += `<div class="card" style="padding:0;overflow:hidden">
