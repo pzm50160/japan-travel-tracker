@@ -546,8 +546,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 <div class="page" id="page-game" style="overflow-x:hidden;touch-action:pan-y">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-size:17px;font-weight:700">🃏 大老二計分</div>
-    <button onclick="openGameRoundModal()" class="btn-save" style="padding:7px 15px;font-size:12px;border-radius:20px">+ 記錄一局</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button onclick="refreshGameData()" style="background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text2)">↻ 重新整理</button>
+      <button onclick="openGameRoundModal()" class="btn-save" style="padding:7px 15px;font-size:12px;border-radius:20px">+ 記錄一局</button>
+    </div>
   </div>
+  <div id="gameMigrateBanner"></div>
   <div id="gameLeaderboard"></div>
   <div id="gameStats"></div>
   <div id="gameRoundList"></div>
@@ -2751,29 +2755,82 @@ let gData = { players: [], rounds: [] };
 
 async function loadGData() {
   if (!state.tripId) return;
-  const { data } = await sb.from('trips').select('game_data').eq('id', state.tripId).single();
+  const { data, error } = await sb.from('trips').select('game_data').eq('id', state.tripId).single();
+  if (error) { showToast('牌局載入失敗：' + error.message); return; }
   const d = data?.game_data || {};
-  // 一次性遷移：若雲端沒資料但本機有，自動上傳
   if (!d.rounds?.length && !d.players?.length) {
-    try {
-      const local = JSON.parse(localStorage.getItem('bt_game') || '{}');
-      if (local.players?.length || local.rounds?.length) {
-        gData.players = local.players || [];
-        gData.rounds  = local.rounds  || [];
-        await saveGData();
-        localStorage.removeItem('bt_game');
-        showToast('舊牌局資料已同步到雲端 ✓');
-        return;
-      }
-    } catch(_) {}
+    // 雲端空白 — 嘗試自動遷移本機舊資料
+    await migrateLocalGameData();
+  } else {
+    gData.players = d.players || [];
+    gData.rounds  = d.rounds  || [];
   }
-  gData.players = d.players || [];
-  gData.rounds  = d.rounds  || [];
+  renderGameMigrateBanner();
+}
+
+function renderGameMigrateBanner() {
+  const el = document.getElementById('gameMigrateBanner');
+  if (!el) return;
+  const local = (() => { try { return JSON.parse(localStorage.getItem('bt_game') || '{}'); } catch(_) { return {}; } })();
+  if (local.players?.length || local.rounds?.length) {
+    el.innerHTML = `<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:13px">
+      ⚠️ 本機有舊牌局資料（${local.players?.length||0} 位玩家，${local.rounds?.length||0} 局）尚未上傳到雲端。
+      <button onclick="forceUploadLocalGame()" style="display:block;margin-top:8px;width:100%;background:#F59E0B;color:white;border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:600;cursor:pointer">上傳本機資料到雲端</button>
+    </div>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+async function forceUploadLocalGame() {
+  const local = (() => { try { return JSON.parse(localStorage.getItem('bt_game') || '{}'); } catch(_) { return {}; } })();
+  if (!local.players?.length && !local.rounds?.length) { showToast('本機沒有舊資料'); return; }
+  gData.players = local.players || [];
+  gData.rounds  = local.rounds  || [];
+  const { error } = await sb.from('trips')
+    .update({ game_data: { players: gData.players, rounds: gData.rounds } })
+    .eq('id', state.tripId);
+  if (error) {
+    showToast('⚠️ 上傳失敗：' + error.message);
+  } else {
+    localStorage.removeItem('bt_game');
+    renderGameMigrateBanner();
+    renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+    showToast('已上傳到雲端，其他人現在可以看到了 ✓');
+  }
+}
+
+async function migrateLocalGameData() {
+  try {
+    const local = JSON.parse(localStorage.getItem('bt_game') || '{}');
+    if (!local.players?.length && !local.rounds?.length) return;
+    gData.players = local.players || [];
+    gData.rounds  = local.rounds  || [];
+    const { error } = await sb.from('trips')
+      .update({ game_data: { players: gData.players, rounds: gData.rounds } })
+      .eq('id', state.tripId);
+    if (error) {
+      showToast('⚠️ 自動同步失敗：' + error.message);
+    } else {
+      localStorage.removeItem('bt_game');
+      showToast('舊牌局資料已同步到雲端 ✓');
+    }
+  } catch(e) {
+    showToast('⚠️ 遷移失敗：' + e.message);
+  }
 }
 
 async function saveGData() {
   if (!state.tripId) return;
-  await sb.from('trips').update({ game_data: { players: gData.players, rounds: gData.rounds } }).eq('id', state.tripId);
+  const { error } = await sb.from('trips').update({ game_data: { players: gData.players, rounds: gData.rounds } }).eq('id', state.tripId);
+  if (error) showToast('⚠️ 儲存失敗：' + error.message);
+}
+
+async function refreshGameData() {
+  document.getElementById('gameLeaderboard').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text2);font-size:13px">載入中…</div>';
+  await loadGData();
+  renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+  showToast('已重新整理');
 }
 
 // 顯示玩家頭像（支援旅程成員大頭照）
@@ -2817,6 +2874,7 @@ async function renderGame() {
   renderGameLeaderboard();
   renderGameStats();
   renderGameRoundList();
+  renderGameMigrateBanner();
 }
 
 function renderGameLeaderboard() {
