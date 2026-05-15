@@ -78,11 +78,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .page.active{display:block}
 .card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px}
 /* HOME */
-.hero-photos{display:flex;justify-content:center;margin:-14px -14px 14px;padding:20px 14px 0;background:linear-gradient(180deg,#E8E5DE 0%,var(--bg) 100%);height:165px;position:relative;overflow:hidden}
-.photo-card{width:108px;height:136px;border-radius:10px;border:3px solid white;position:absolute;box-shadow:0 4px 14px rgba(0,0,0,0.13);display:flex;align-items:center;justify-content:center;font-size:34px}
-.photo-card:nth-child(1){left:50%;transform:translateX(-74px) rotate(-8deg);bottom:0;z-index:1}
-.photo-card:nth-child(2){left:50%;transform:translateX(-50%);bottom:0;z-index:3}
-.photo-card:nth-child(3){left:50%;transform:translateX(-4px) rotate(8deg);bottom:0;z-index:2}
 .trip-title{text-align:center;font-size:19px;font-weight:700;margin-bottom:13px}
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
@@ -196,6 +191,20 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .top10-bar{height:3px;background:var(--orange-light);border-radius:2px;overflow:hidden}
 .top10-bar-fill{height:100%;background:var(--orange);border-radius:2px}
 .top10-amt{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;flex-shrink:0}
+/* HERO BANNER */
+.hero-banner{margin:-14px -14px 14px;position:relative;overflow:hidden;height:210px;background:linear-gradient(135deg,#C8501A 0%,#E8682A 40%,#F5A878 75%,#FFD4A8 100%)}
+.hero-banner-bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.hero-banner-bg img{width:100%;height:100%;object-fit:cover;display:block}
+.hero-banner-pattern{position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg width='52' height='52' viewBox='0 0 52 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M26 2 L50 26 L26 50 L2 26 Z' fill='none' stroke='white' stroke-width='1.2' opacity='0.13'/%3E%3C/svg%3E");background-size:52px 52px}
+.hero-banner-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.68) 0%,rgba(0,0,0,.15) 55%,transparent 100%)}
+.hero-banner-content{position:absolute;bottom:0;left:0;right:0;padding:14px 16px}
+.hero-banner-title{font-size:20px;font-weight:700;color:white;text-shadow:0 1px 5px rgba(0,0,0,.35);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero-banner-dates{font-size:11px;color:rgba(255,255,255,.9);margin-bottom:9px;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+.hero-members{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.hero-av{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:13px;overflow:hidden;flex-shrink:0}
+.hero-av img{width:100%;height:100%;object-fit:cover}
+.hero-member-name{font-size:10px;color:rgba(255,255,255,.85);margin-right:5px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.hero-change-btn{position:absolute;top:11px;right:11px;background:rgba(0,0,0,.38);border:1.5px solid rgba(255,255,255,.4);border-radius:20px;color:white;font-size:11px;padding:5px 11px;cursor:pointer;display:flex;align-items:center;gap:5px;backdrop-filter:blur(4px)}
 /* FAB */
 .fab{position:fixed;bottom:72px;right:17px;width:50px;height:50px;border-radius:50%;background:var(--orange);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(232,104,42,.4);z-index:99}
 .fab svg{width:21px;height:21px;fill:white}
@@ -379,35 +388,56 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <!-- Join Trip Form -->
   <div id="joinTripForm" style="display:none;margin-top:16px">
     <div style="font-size:15px;font-weight:700;margin-bottom:14px">🔗 加入旅程</div>
-    <div class="form-group"><label class="form-label">邀請碼（6位數）</label><input class="form-input" id="joinCode" placeholder="ABC123" style="letter-spacing:3px;font-family:'DM Mono',monospace;font-size:18px;text-transform:uppercase"></div>
 
-    <!-- 個人資料 -->
-    <div style="background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
-      <div style="font-size:12px;font-weight:600;color:var(--orange);margin-bottom:10px">👤 我的資料</div>
-      <div class="form-group" style="margin-bottom:10px">
-        <label class="form-label">頭像</label>
-        <div style="display:flex;align-items:center;gap:12px">
-          <div id="joinAvatarPreview" style="width:60px;height:60px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;overflow:hidden;cursor:pointer" onclick="openJoinAvatarMenu()">😊</div>
-          <div style="flex:1">
-            <div style="display:flex;gap:7px;flex-wrap:wrap" id="joinEmojiPicker"></div>
-            <div style="display:flex;gap:6px;margin-top:8px">
-              <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('joinPhotoFile').click()">📁 相簿</button>
-              <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('joinPhotoCam').click()">📷 拍照</button>
-            </div>
-          </div>
-        </div>
-        <input type="file" id="joinPhotoFile" accept="image/*" style="display:none" onchange="handleJoinAvatar(this.files[0])">
-        <input type="file" id="joinPhotoCam" accept="image/*" capture="user" style="display:none" onchange="handleJoinAvatar(this.files[0])">
-      </div>
-      <div class="form-group" style="margin-bottom:0">
-        <label class="form-label">你的名字</label>
-        <input class="form-input" id="joinMemberName" placeholder="小明">
+    <!-- Step 1: 輸入邀請碼 -->
+    <div id="joinStep1">
+      <div class="form-group"><label class="form-label">邀請碼（6位數）</label><input class="form-input" id="joinCode" placeholder="ABC123" style="letter-spacing:3px;font-family:'DM Mono',monospace;font-size:18px;text-transform:uppercase"></div>
+      <div class="btn-row">
+        <button class="btn-cancel" onclick="document.getElementById('joinTripForm').style.display='none'">取消</button>
+        <button class="btn-save" id="lookupTripBtn" onclick="lookupTrip()">查詢旅程 →</button>
       </div>
     </div>
 
-    <div class="btn-row">
-      <button class="btn-cancel" onclick="document.getElementById('joinTripForm').style.display='none'">取消</button>
-      <button class="btn-save" id="joinTripBtn" onclick="joinTrip()">加入旅程 →</button>
+    <!-- Step 2: 選擇你是誰 -->
+    <div id="joinStep2" style="display:none">
+      <div style="background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:12px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--orange);font-weight:600;margin-bottom:2px">找到旅程</div>
+        <div style="font-size:15px;font-weight:700" id="joinFoundTripName"></div>
+      </div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">你是哪位旅伴？</div>
+      <div id="existingMembersList" style="margin-bottom:12px"></div>
+      <button class="btn-cancel" style="width:100%;padding:10px;font-size:13px;border-radius:var(--radius-sm)" onclick="showJoinNewMember()">＋ 我是新加入的</button>
+      <button class="btn-cancel" style="width:100%;padding:8px;font-size:12px;border-radius:var(--radius-sm);margin-top:6px" onclick="resetJoinForm()">← 重新輸入邀請碼</button>
+    </div>
+
+    <!-- Step 3: 新成員資料 -->
+    <div id="joinStep3" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">👤 你的資料</div>
+      <div style="background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:14px;margin-bottom:14px">
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">頭像</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div id="joinAvatarPreview" style="width:60px;height:60px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;overflow:hidden;cursor:pointer">😊</div>
+            <div style="flex:1">
+              <div style="display:flex;gap:7px;flex-wrap:wrap" id="joinEmojiPicker"></div>
+              <div style="display:flex;gap:6px;margin-top:8px">
+                <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('joinPhotoFile').click()">📁 相簿</button>
+                <button class="btn-cancel" style="flex:1;padding:7px;font-size:11px" onclick="document.getElementById('joinPhotoCam').click()">📷 拍照</button>
+              </div>
+            </div>
+          </div>
+          <input type="file" id="joinPhotoFile" accept="image/*" style="display:none" onchange="handleJoinAvatar(this.files[0])">
+          <input type="file" id="joinPhotoCam" accept="image/*" capture="user" style="display:none" onchange="handleJoinAvatar(this.files[0])">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">你的名字</label>
+          <input class="form-input" id="joinMemberName" placeholder="小明">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-cancel" onclick="showJoinStep2()">← 返回選擇</button>
+        <button class="btn-save" id="joinTripBtn" onclick="joinTrip()">加入旅程 →</button>
+      </div>
     </div>
   </div>
 </div>
@@ -431,9 +461,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 </nav>
 
 <div class="page active" id="page-home">
-  <div class="hero-photos" id="heroPhotos">
-    <div class="photo-card">🗻</div><div class="photo-card">⛩️</div><div class="photo-card">🌸</div>
-  </div>
+  <div class="hero-banner" id="heroBanner"></div>
   <div class="trip-title" id="tripTitle">載入中...</div>
   <div style="text-align:center;margin-bottom:12px;font-size:12px;color:var(--text2)">
     同步狀態 <span class="sync-dot" id="syncDot"></span>
@@ -524,8 +552,24 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
   </div>
   <div class="card">
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px">旅行成員</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:600">旅行成員（<span id="memberCount">0</span> 人）</div>
+      <button onclick="toggleAddMemberForm()" style="font-size:11px;color:var(--orange);background:var(--orange-light);border:1px solid #F5C9A8;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">＋ 新增旅伴</button>
+    </div>
     <div id="memberList"></div>
+    <!-- 新增旅伴表單 -->
+    <div id="addMemberForm" style="display:none;border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">新增旅伴（不需要使用 App）</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div id="addMemberAvatarPreview" style="width:44px;height:44px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">😊</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap" id="addMemberEmojiPicker"></div>
+      </div>
+      <input class="form-input" id="addMemberName" placeholder="旅伴名字" style="margin-bottom:8px">
+      <div style="display:flex;gap:7px">
+        <button class="btn-cancel" style="flex:1;padding:8px;font-size:12px" onclick="toggleAddMemberForm()">取消</button>
+        <button class="btn-save" style="flex:2;padding:8px;font-size:12px" onclick="addMember()">新增</button>
+      </div>
+    </div>
   </div>
   <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <input type="file" id="avatarCamInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarUpload(this.files[0])">
@@ -1053,28 +1097,82 @@ async function createTrip() {
   btn.disabled = false; btn.textContent = '建立旅程 →';
 }
 
-async function joinTrip() {
+let pendingJoinTrip = null;
+
+function resetJoinForm() {
+  pendingJoinTrip = null;
+  document.getElementById('joinStep1').style.display = '';
+  document.getElementById('joinStep2').style.display = 'none';
+  document.getElementById('joinStep3').style.display = 'none';
+}
+
+function showJoinStep2() {
+  document.getElementById('joinStep1').style.display = 'none';
+  document.getElementById('joinStep2').style.display = '';
+  document.getElementById('joinStep3').style.display = 'none';
+}
+
+function showJoinNewMember() {
+  document.getElementById('joinStep2').style.display = 'none';
+  document.getElementById('joinStep3').style.display = '';
+}
+
+async function lookupTrip() {
   const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  if (!code) { showToast('請輸入邀請碼'); return; }
+  const btn = document.getElementById('lookupTripBtn');
+  btn.disabled = true; btn.textContent = '查詢中...';
+  try {
+    const { data: trip } = await sb.from('trips').select('*').eq('invite_code', code).single();
+    if (!trip) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='查詢旅程 →'; return; }
+    pendingJoinTrip = trip;
+    const { data: members } = await sb.from('members').select('*').eq('trip_id', trip.id);
+    document.getElementById('joinFoundTripName').textContent = '✈️ ' + trip.name;
+    document.getElementById('existingMembersList').innerHTML = (members||[]).map(m => `
+      <div onclick="joinAsExisting('${m.id}','${m.name.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;flex-shrink:0">${m.avatar_url ? `<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : m.emoji}</div>
+        <div style="flex:1;font-size:14px;font-weight:500">${m.name}</div>
+        <div style="font-size:11px;color:var(--orange);font-weight:600">這是我 →</div>
+      </div>`).join('');
+    showJoinStep2();
+  } catch(e) { showToast('查詢失敗：' + e.message); }
+  btn.disabled = false; btn.textContent = '查詢旅程 →';
+}
+
+async function joinAsExisting(memberId, memberName) {
+  if (!pendingJoinTrip) return;
+  if (!confirm(`確定你是「${memberName}」嗎？`)) return;
+  const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+  myTrips.push({ id: pendingJoinTrip.id, memberId });
+  localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
+  localStorage.setItem('jpTripId', pendingJoinTrip.id);
+  localStorage.setItem('jpMemberId', memberId);
+  state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
+  await loadAll();
+  showApp();
+  subscribeRealtime();
+}
+
+async function joinTrip() {
   const memberName = document.getElementById('joinMemberName').value.trim();
-  if (!code || !memberName) { showToast('請填寫邀請碼和你的名字'); return; }
+  if (!memberName) { showToast('請填寫你的名字'); return; }
+  if (!pendingJoinTrip) { showToast('請先查詢邀請碼'); return; }
   const btn = document.getElementById('joinTripBtn');
   btn.disabled = true; btn.textContent = '加入中...';
   try {
-    const { data: trip } = await sb.from('trips').select('*').eq('invite_code', code).single();
-    if (!trip) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='加入旅程 →'; return; }
     const memberId = 'mb_' + Date.now();
     await sb.from('members').insert({
       id: memberId, name: memberName,
       emoji: joinSelEmoji,
       avatar_url: joinAvatarDataUrl || null,
-      trip_id: trip.id,
+      trip_id: pendingJoinTrip.id,
     });
     const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-    myTrips.push({ id: trip.id, memberId });
+    myTrips.push({ id: pendingJoinTrip.id, memberId });
     localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
-    localStorage.setItem('jpTripId', trip.id);
+    localStorage.setItem('jpTripId', pendingJoinTrip.id);
     localStorage.setItem('jpMemberId', memberId);
-    state.tripId = trip.id; state.myMemberId = memberId; state.trip = trip;
+    state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
     await loadAll();
     showApp();
     subscribeRealtime();
@@ -1256,34 +1354,59 @@ function goPage(id, btn) {
   else if(id==='settings')renderSettings();
 }
 
-// ─── COVER PHOTOS ────────────────────────────────────────────────────────────
+// ─── HERO BANNER ─────────────────────────────────────────────────────────────
 const DEFAULT_COVERS = ['🗻', '⛩️', '🌸'];
 let coverEditIndex = 0;
 
-function renderCoverPhotos() {
-  const covers = state.trip?.cover_photos || DEFAULT_COVERS;
-  document.getElementById('heroPhotos').innerHTML = covers.map((src, i) => {
-    const inner = src && src.startsWith('data:')
-      ? `<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:7px">`
-      : `<span>${src || DEFAULT_COVERS[i]}</span>`;
-    return `<div class="photo-card" onclick="openCoverPicker(${i})" title="點擊換圖">${inner}<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,.35);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;color:white">✎</div></div>`;
-  }).join('') + '<input type="file" id="coverPhotoInput" accept="image/*" style="display:none" onchange="handleCoverPhoto(this.files[0])">';
+function renderHeroBanner() {
+  const t = state.trip;
+  if (!t) return;
+  // 只用第一張做全幅封面
+  const covers = t.cover_photos || DEFAULT_COVERS;
+  const photo = covers[0];
+  const hasPhoto = photo && photo.startsWith('data:');
+
+  const bgHtml = hasPhoto
+    ? `<div class="hero-banner-bg"><img src="${photo}"></div>`
+    : `<div class="hero-banner-pattern"></div>`;
+
+  const memberAvatars = state.members.map(m =>
+    `<div class="hero-av">${m.avatar_url ? `<img src="${m.avatar_url}">` : m.emoji}</div>
+     <span class="hero-member-name">${m.name}</span>`
+  ).join('');
+
+  const days = Math.ceil((new Date(t.end_date) - new Date(t.start_date)) / 86400000) + 1;
+
+  document.getElementById('heroBanner').innerHTML = `
+    ${bgHtml}
+    <div class="hero-banner-overlay"></div>
+    <div class="hero-banner-content">
+      <div class="hero-banner-title">✈️ ${t.name}</div>
+      <div class="hero-banner-dates">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${days} 天 &nbsp;·&nbsp; ${state.members.length} 人</div>
+      <div class="hero-members">${memberAvatars}</div>
+    </div>
+    <button class="hero-change-btn" onclick="openCoverPicker(0)">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      換封面
+    </button>
+    <input type="file" id="coverPhotoInput" accept="image/*" style="display:none" onchange="handleCoverPhoto(this.files[0])">`;
 }
 
 function openCoverPicker(idx) {
   coverEditIndex = idx;
-  document.getElementById('coverPhotoInput').value = '';
-  document.getElementById('coverPhotoInput').click();
+  const inp = document.getElementById('coverPhotoInput');
+  inp.value = '';
+  inp.click();
 }
 
 function handleCoverPhoto(file) {
   if (!file) return;
   openCropperWith(file, async dataUrl => {
     const covers = [...(state.trip?.cover_photos || DEFAULT_COVERS)];
-    covers[coverEditIndex] = dataUrl;
+    covers[0] = dataUrl;
     await sb.from('trips').update({ cover_photos: covers }).eq('id', state.tripId);
     state.trip.cover_photos = covers;
-    renderCoverPhotos();
+    renderHeroBanner();
     showToast('封面已更新！');
   });
 }
@@ -1292,7 +1415,7 @@ function handleCoverPhoto(file) {
 function renderHome() {
   if (!state.trip) return;
   const t = state.trip;
-  renderCoverPhotos();
+  renderHeroBanner();
   document.getElementById('tripTitle').textContent = t.name;
   const today = new Date().toISOString().split('T')[0];
   const start = new Date(t.start_date), end = new Date(t.end_date), now = new Date();
@@ -1433,16 +1556,20 @@ function renderSettings() {
   document.getElementById('inviteCodeDisplay').textContent = t.invite_code || '------';
   document.getElementById('apiKeyInput').value = state.apiKey;
   document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : '';
+  document.getElementById('memberCount').textContent = state.members.length;
   document.getElementById('memberList').innerHTML = state.members.map(m => {
     const isMe = m.id === state.myMemberId;
     const avContent = m.avatar_url
       ? `<img src="${m.avatar_url}" class="avatar-img" style="border-radius:50%;width:36px;height:36px;object-fit:cover">`
       : `<span style="font-size:18px">${m.emoji}</span>`;
     return `<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)">
-      <div style="width:36px;height:36px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid var(--border);flex-shrink:0">${avContent}</div>
-      <span style="font-size:12px;flex:1">${m.name}</span>
-      ${isMe ? `<span style="font-size:10px;color:var(--orange);background:var(--orange-light);padding:2px 7px;border-radius:20px">我</span>
-        <button onclick="openAvatarPicker()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:var(--text2)">換頭像</button>` : ''}
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid ${isMe?'var(--orange)':'var(--border)'};flex-shrink:0">${avContent}</div>
+      <span style="font-size:13px;flex:1;font-weight:${isMe?'600':'400'}">${m.name}</span>
+      ${isMe
+        ? `<span style="font-size:10px;color:var(--orange);background:var(--orange-light);padding:2px 7px;border-radius:20px;flex-shrink:0">我</span>
+           <button onclick="openAvatarPicker()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:var(--text2);flex-shrink:0">換頭像</button>`
+        : `<button onclick="setAsMe('${m.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:var(--text2);flex-shrink:0">設為我</button>
+           <button onclick="removeMember('${m.id}','${m.name}')" style="background:none;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#EF4444;flex-shrink:0">移除</button>`}
     </div>`;
   }).join('');
 }
@@ -1459,6 +1586,61 @@ async function saveTripSetting() {
   state.trip = {...state.trip, ...updates};
   showToast('設定已儲存');
 }
+let addMemberSelEmoji = '😊';
+
+function toggleAddMemberForm() {
+  const form = document.getElementById('addMemberForm');
+  const visible = form.style.display !== 'none';
+  form.style.display = visible ? 'none' : 'block';
+  if (!visible) {
+    document.getElementById('addMemberName').value = '';
+    addMemberSelEmoji = '😊';
+    document.getElementById('addMemberAvatarPreview').textContent = '😊';
+    document.getElementById('addMemberEmojiPicker').innerHTML = EMOJIS.map(e =>
+      `<span style="font-size:20px;cursor:pointer;padding:2px;border-radius:6px;border:2px solid ${e==='😊'?'var(--orange)':'transparent'}" onclick="pickAddMemberEmoji(this,'${e}')">${e}</span>`
+    ).join('');
+  }
+}
+
+function pickAddMemberEmoji(el, e) {
+  addMemberSelEmoji = e;
+  document.querySelectorAll('#addMemberEmojiPicker span').forEach(s => s.style.borderColor = 'transparent');
+  el.style.borderColor = 'var(--orange)';
+  document.getElementById('addMemberAvatarPreview').textContent = e;
+}
+
+async function addMember() {
+  const name = document.getElementById('addMemberName').value.trim();
+  if (!name) { showToast('請填寫旅伴名字'); return; }
+  const memberId = 'mb_' + Date.now();
+  await sb.from('members').insert({ id: memberId, name, emoji: addMemberSelEmoji, avatar_url: null, trip_id: state.tripId });
+  state.members.push({ id: memberId, name, emoji: addMemberSelEmoji, avatar_url: null, trip_id: state.tripId });
+  toggleAddMemberForm();
+  renderSettings();
+  showToast(`已新增 ${name}`);
+}
+
+async function setAsMe(memberId) {
+  if (!confirm('確定要切換成這位成員嗎？你之後的記帳將以此身份進行。')) return;
+  const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+  const idx = myTrips.findIndex(t => t.id === state.tripId);
+  if (idx >= 0) myTrips[idx].memberId = memberId;
+  else myTrips.push({ id: state.tripId, memberId });
+  localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
+  localStorage.setItem('jpMemberId', memberId);
+  state.myMemberId = memberId;
+  renderSettings();
+  showToast('身份已切換');
+}
+
+async function removeMember(memberId, memberName) {
+  if (!confirm(`確定要移除「${memberName}」嗎？`)) return;
+  await sb.from('members').delete().eq('id', memberId);
+  state.members = state.members.filter(m => m.id !== memberId);
+  renderSettings();
+  showToast(`已移除 ${memberName}`);
+}
+
 function saveApiKey() { state.apiKey = document.getElementById('apiKeyInput').value; localStorage.setItem('jpApiKey', state.apiKey); document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : ''; }
 function copyInviteCode() { navigator.clipboard.writeText(state.trip?.invite_code || '').then(()=>showToast('邀請碼已複製！')); }
 
