@@ -269,6 +269,20 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .memoir-photo-strip{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:4px}
 .memoir-photo-strip img{width:100px;height:100px;object-fit:cover;border-radius:10px;flex-shrink:0;cursor:pointer}
 .archived-badge{display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:var(--success);font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid #A7F3D0}
+/* BIG TWO GAME */
+.g-board{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px}
+.g-board-header{padding:11px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.g-player-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border)}
+.g-player-row:last-child{border-bottom:none}
+.g-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:white;flex-shrink:0}
+.g-score-pos{font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:#16A34A}
+.g-score-neg{font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:#DC2626}
+.g-score-zero{font-family:'DM Mono',monospace;font-weight:700;font-size:15px;color:var(--text2)}
+.g-round-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px;overflow:hidden}
+.g-round-hdr{padding:8px 13px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--bg)}
+.g-round-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.g-round-cell{padding:7px 13px;font-size:11px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.g-round-cell:nth-child(odd){border-right:1px solid var(--border)}
 /* INVITE */
 .invite-box{background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:12px;margin-top:10px}
 .invite-code{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:4px;color:var(--orange);text-align:center;margin:8px 0}
@@ -456,6 +470,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>統計</button>
   <button class="nav-btn" onclick="goPage('memoir',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>回憶錄</button>
+  <button class="nav-btn" onclick="goPage('game',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="14" height="18" rx="2"/><path d="M8 4V2M6 9h6M6 13h4"/><rect x="8" y="8" width="14" height="14" rx="2" fill="var(--surface)" stroke="currentColor"/><path d="M14 12h6M14 16h4"/></svg>牌局</button>
   <button class="nav-btn" onclick="goPage('settings',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>設定</button>
 </nav>
@@ -524,6 +540,16 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <canvas id="payChart" style="display:none"></canvas>
   <div class="card" style="margin-bottom:9px"><div style="font-size:12px;font-weight:600;margin-bottom:9px">💳 誰付了多少錢</div><div id="payerStatsList"></div></div>
   <div class="card"><div style="font-size:12px;font-weight:600;margin-bottom:9px">花費金額前十名</div><div id="top10List"></div></div>
+</div>
+
+<!-- GAME PAGE -->
+<div class="page" id="page-game" style="overflow-x:hidden;touch-action:pan-y">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:17px;font-weight:700">🃏 大老二計分</div>
+    <button onclick="openGameRoundModal()" class="btn-save" style="padding:7px 15px;font-size:12px;border-radius:20px">+ 記錄一局</button>
+  </div>
+  <div id="gameLeaderboard"></div>
+  <div id="gameRoundList"></div>
 </div>
 
 <!-- MEMOIR PAGE -->
@@ -689,6 +715,37 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
         <button class="btn-cancel" style="flex:1;padding:11px;font-size:13px" onclick="document.getElementById('posterModal').classList.remove('open')">關閉</button>
         <button class="btn-save" style="flex:2;padding:11px;font-size:13px" onclick="downloadPoster()">⬇️ 下載圖片</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME ROUND MODAL -->
+<div class="modal-backdrop" id="gameRoundModal">
+  <div class="modal">
+    <div class="modal-title" id="gameRoundModalTitle">📝 記錄一局</div>
+    <div id="gameRoundInputs"></div>
+    <div style="background:var(--bg);border-radius:8px;padding:9px 12px;margin:10px 0;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:11px;color:var(--text2)">本局合計（零和應為 0）</span>
+      <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:13px" id="gameRoundSum">0</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeGameRoundModal()">取消</button>
+      <button class="btn-save" onclick="saveGameRound()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME PLAYER MODAL -->
+<div class="modal-backdrop" id="gamePlayerModal">
+  <div class="modal">
+    <div class="modal-title">➕ 新增玩家</div>
+    <div class="form-group">
+      <label class="form-label">玩家名稱</label>
+      <input class="form-input" id="gamePlayerName" placeholder="輸入名稱" maxlength="10">
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="document.getElementById('gamePlayerModal').classList.remove('open')">取消</button>
+      <button class="btn-save" onclick="confirmAddGamePlayer()">新增</button>
     </div>
   </div>
 </div>
@@ -1356,6 +1413,7 @@ function goPage(id, btn) {
   else if(id==='split')renderSplit();
   else if(id==='stats')renderStats();
   else if(id==='memoir')renderMemoir();
+  else if(id==='game')renderGame();
   else if(id==='settings')renderSettings();
 }
 
@@ -2685,6 +2743,186 @@ ${memoirSnippet}
   window.location.href = `mailto:${recipients}?subject=${subject}&body=${body}`;
   document.getElementById('emailModal').classList.remove('open');
   showToast('已開啟郵件 App！');
+}
+
+// ─── BIG TWO GAME ─────────────────────────────────────────────────────────────
+const G_COLORS = ['#E8682A','#3B82F6','#10B981','#EC4899','#8B5CF6','#F59E0B','#EF4444','#06B6D4'];
+let gData = (() => { try { return JSON.parse(localStorage.getItem('bt_game')||'{}'); } catch(e){ return {}; } })();
+if (!gData.players) gData.players = [];
+if (!gData.rounds)  gData.rounds  = [];
+
+function saveGData() { localStorage.setItem('bt_game', JSON.stringify(gData)); }
+
+function renderGame() {
+  renderGameLeaderboard();
+  renderGameRoundList();
+}
+
+function gTotals() {
+  const t = {};
+  gData.players.forEach(p => { t[p.id] = 0; });
+  gData.rounds.forEach(r => {
+    Object.entries(r.scores).forEach(([pid, v]) => { if (t[pid] !== undefined) t[pid] += v; });
+  });
+  return t;
+}
+
+function renderGameLeaderboard() {
+  const cont = document.getElementById('gameLeaderboard');
+  if (!gData.players.length) {
+    cont.innerHTML = `<div class="g-board" style="text-align:center;padding:28px 16px">
+      <div style="font-size:42px;margin-bottom:10px">🃏</div>
+      <div style="font-size:14px;font-weight:600;margin-bottom:5px">還沒有玩家</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px">先新增玩家再開始記分</div>
+      <button onclick="openAddGamePlayer()" class="btn-save" style="width:100%;padding:12px">＋ 新增玩家</button>
+    </div>`;
+    return;
+  }
+  const totals = gTotals();
+  const sorted = [...gData.players].sort((a,b) => totals[b.id] - totals[a.id]);
+  const rankIcon = ['🥇','🥈','🥉'];
+  cont.innerHTML = `<div class="g-board">
+    <div class="g-board-header">
+      <span style="font-size:12px;font-weight:600">排行榜 · 共 ${gData.rounds.length} 局</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="openAddGamePlayer()" style="font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;font-weight:500">＋ 玩家</button>
+        ${gData.rounds.length ? `<button onclick="confirmResetGame()" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer">重置</button>` : ''}
+      </div>
+    </div>
+    ${sorted.map((p,i) => {
+      const s = totals[p.id];
+      const color = G_COLORS[gData.players.findIndex(x=>x.id===p.id) % G_COLORS.length];
+      const cls = s > 0 ? 'g-score-pos' : s < 0 ? 'g-score-neg' : 'g-score-zero';
+      return `<div class="g-player-row">
+        <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0">${rankIcon[i]||i+1}</span>
+        <div class="g-avatar" style="background:${color}">${p.name[0]}</div>
+        <span style="font-size:13px;font-weight:600;flex:1">${p.name}</span>
+        <div style="text-align:right">
+          <div class="${cls}">${s>0?'+':''}${s}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:1px">${gData.rounds.filter(r=>Object.keys(r.scores).includes(p.id)&&r.scores[p.id]>0).length} 勝 / ${gData.rounds.filter(r=>Object.keys(r.scores).includes(p.id)&&r.scores[p.id]<0).length} 負</div>
+        </div>
+        <button onclick="removeGamePlayer('${p.id}')" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px;margin-left:4px;flex-shrink:0">×</button>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderGameRoundList() {
+  const cont = document.getElementById('gameRoundList');
+  if (!gData.rounds.length) { cont.innerHTML = ''; return; }
+  const totals = gTotals();
+  const rounds = [...gData.rounds].reverse();
+  cont.innerHTML = `<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">對局記錄</div>` +
+    rounds.map((r, ri) => {
+      const idx = gData.rounds.length - ri;
+      const entries = Object.entries(r.scores).sort((a,b)=>b[1]-a[1]);
+      const winner = entries.find(([,v])=>v>0);
+      return `<div class="g-round-card">
+        <div class="g-round-hdr">
+          <span style="font-size:12px;font-weight:600">第 ${idx} 局 ${winner?'· '+gData.players.find(p=>p.id===winner[0])?.name+' 贏':''}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:10px;color:var(--text2)">${r.date||''}</span>
+            <button onclick="deleteGameRound('${r.id}')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer">🗑</button>
+          </div>
+        </div>
+        <div class="g-round-body">
+          ${entries.map(([pid, v]) => {
+            const p = gData.players.find(x=>x.id===pid);
+            if (!p) return '';
+            const color = G_COLORS[gData.players.findIndex(x=>x.id===pid) % G_COLORS.length];
+            const cls = v>0?'g-score-pos':v<0?'g-score-neg':'g-score-zero';
+            return `<div class="g-round-cell">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="g-avatar" style="width:22px;height:22px;font-size:10px;background:${color}">${p.name[0]}</div>
+                <span style="font-size:11px">${p.name}</span>
+              </div>
+              <span class="${cls}" style="font-size:12px">${v>0?'+':''}${v}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('');
+}
+
+function openAddGamePlayer() {
+  document.getElementById('gamePlayerName').value = '';
+  document.getElementById('gamePlayerModal').classList.add('open');
+  setTimeout(()=>document.getElementById('gamePlayerName').focus(), 100);
+}
+function confirmAddGamePlayer() {
+  const name = document.getElementById('gamePlayerName').value.trim();
+  if (!name) { showToast('請輸入名稱'); return; }
+  if (gData.players.find(p=>p.name===name)) { showToast('已有同名玩家'); return; }
+  gData.players.push({ id: 'g'+Date.now(), name });
+  saveGData();
+  document.getElementById('gamePlayerModal').classList.remove('open');
+  renderGame();
+}
+function removeGamePlayer(id) {
+  if (!confirm('確定移除這位玩家？該玩家的所有記錄也會一併移除。')) return;
+  gData.players = gData.players.filter(p=>p.id!==id);
+  gData.rounds.forEach(r=>{ delete r.scores[id]; });
+  saveGData(); renderGame();
+}
+
+let editingRoundId = null;
+function openGameRoundModal(roundId) {
+  if (!gData.players.length) { showToast('請先新增玩家'); return; }
+  editingRoundId = roundId || null;
+  const round = roundId ? gData.rounds.find(r=>r.id===roundId) : null;
+  document.getElementById('gameRoundModalTitle').textContent = roundId ? '✏️ 編輯局' : '📝 記錄一局';
+  document.getElementById('gameRoundInputs').innerHTML = gData.players.map(p => {
+    const color = G_COLORS[gData.players.indexOf(p) % G_COLORS.length];
+    const val = round ? (round.scores[p.id]||0) : 0;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div class="g-avatar" style="background:${color};width:32px;height:32px;font-size:14px">${p.name[0]}</div>
+      <span style="font-size:13px;font-weight:600;flex:1">${p.name}</span>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button onclick="adjustGScore('${p.id}',-1)" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">−</button>
+        <input type="number" id="gscore_${p.id}" value="${val}" oninput="updateGSum()"
+          style="width:60px;text-align:center;border:1px solid var(--border);border-radius:8px;padding:5px;font-size:14px;font-weight:700;font-family:'DM Mono',monospace">
+        <button onclick="adjustGScore('${p.id}',1)" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">＋</button>
+      </div>
+    </div>`;
+  }).join('');
+  updateGSum();
+  document.getElementById('gameRoundModal').classList.add('open');
+}
+function adjustGScore(pid, delta) {
+  const inp = document.getElementById('gscore_'+pid);
+  inp.value = (parseInt(inp.value)||0) + delta;
+  updateGSum();
+}
+function updateGSum() {
+  let sum = 0;
+  gData.players.forEach(p => { sum += parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
+  const el = document.getElementById('gameRoundSum');
+  el.textContent = (sum>0?'+':'')+sum;
+  el.style.color = sum===0 ? 'var(--success)' : 'var(--danger)';
+}
+function closeGameRoundModal() { document.getElementById('gameRoundModal').classList.remove('open'); }
+function saveGameRound() {
+  const scores = {};
+  gData.players.forEach(p => { scores[p.id] = parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
+  if (editingRoundId) {
+    const r = gData.rounds.find(r=>r.id===editingRoundId);
+    if (r) r.scores = scores;
+  } else {
+    const today = new Date().toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'});
+    gData.rounds.push({ id: 'r'+Date.now(), date: today, scores });
+  }
+  saveGData(); closeGameRoundModal(); renderGame();
+  showToast(editingRoundId ? '已更新' : '記錄完成！');
+}
+function deleteGameRound(id) {
+  if (!confirm('確定刪除這局記錄？')) return;
+  gData.rounds = gData.rounds.filter(r=>r.id!==id);
+  saveGData(); renderGame();
+}
+function confirmResetGame() {
+  if (!confirm('確定重置所有對局記錄？玩家名單保留，分數歸零。')) return;
+  gData.rounds = [];
+  saveGData(); renderGame();
 }
 
 // ─── AUTO UPDATE CHECK ────────────────────────────────────────────────────────
