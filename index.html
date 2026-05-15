@@ -547,6 +547,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-size:17px;font-weight:700">🃏 大老二計分</div>
     <div style="display:flex;gap:8px;align-items:center">
+      <span id="gameSaveIndicator" style="display:none;font-size:11px;color:var(--text2);align-items:center;gap:4px"><span style="display:inline-block;animation:spin .8s linear infinite">⟳</span> 儲存中…</span>
       <button onclick="refreshGameData()" style="background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text2)">↻ 重新整理</button>
       <button onclick="openGameRoundModal()" class="btn-save" style="padding:7px 15px;font-size:12px;border-radius:20px">+ 記錄一局</button>
     </div>
@@ -2816,7 +2817,7 @@ function activePlayers() { return activeSession().players; }
 function activeRounds()  { return activeSession().rounds; }
 
 async function loadGData() {
-  if (!state.tripId) return;
+  if (!state.tripId || _gSaving) return;
   const { data, error } = await sb.from('trips').select('game_data').eq('id', state.tripId).single();
   if (error) { showToast('牌局載入失敗：' + error.message); return; }
   const d = data?.game_data || {};
@@ -2890,15 +2891,21 @@ async function migrateLocalGameData() {
   }
 }
 
+let _gSaving = false;
 async function saveGData() {
   if (!state.tripId) return;
+  _gSaving = true;
+  const ind = document.getElementById('gameSaveIndicator');
+  if (ind) ind.style.display = 'flex';
   const { error } = await sb.from('trips').update({ game_data: { sessions: gData.sessions, activeSessionId: gData.activeSessionId } }).eq('id', state.tripId);
+  _gSaving = false;
+  if (ind) ind.style.display = 'none';
   if (error) showToast('⚠️ 儲存失敗：' + error.message);
 }
 
 async function refreshGameData() {
+  if (_gSaving) { showToast('儲存中，請稍後再整理'); return; }
   document.getElementById('gameLeaderboard').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text2);font-size:13px">載入中…</div>';
-  gData = { sessions: [], activeSessionId: null };
   await loadGData();
   renderGameSessionTabs();
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
@@ -3264,10 +3271,10 @@ async function saveGameRound() {
   }
   const msg = editingRoundId ? '已更新' : '記錄完成！';
   closeGameRoundModal();
-  await saveGData();
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
   renderGameSessionTabs();
   showToast(msg);
+  await saveGData();
 }
 async function deleteGameRound(id) {
   if (!confirm('確定刪除這局？')) return;
