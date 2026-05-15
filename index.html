@@ -2747,11 +2747,20 @@ ${memoirSnippet}
 
 // ─── BIG TWO GAME ─────────────────────────────────────────────────────────────
 const G_COLORS = ['#E8682A','#3B82F6','#10B981','#EC4899','#8B5CF6','#F59E0B','#EF4444','#06B6D4'];
-let gData = (() => { try { return JSON.parse(localStorage.getItem('bt_game')||'{}'); } catch(e){ return {}; } })();
-if (!gData.players) gData.players = [];
-if (!gData.rounds)  gData.rounds  = [];
+let gData = { players: [], rounds: [] };
 
-function saveGData() { localStorage.setItem('bt_game', JSON.stringify(gData)); }
+async function loadGData() {
+  if (!state.tripId) return;
+  const { data } = await sb.from('trips').select('game_data').eq('id', state.tripId).single();
+  const d = data?.game_data || {};
+  gData.players = d.players || [];
+  gData.rounds  = d.rounds  || [];
+}
+
+async function saveGData() {
+  if (!state.tripId) return;
+  await sb.from('trips').update({ game_data: { players: gData.players, rounds: gData.rounds } }).eq('id', state.tripId);
+}
 
 // 顯示玩家頭像（支援旅程成員大頭照）
 function gAvHtml(p, size=34) {
@@ -2786,7 +2795,11 @@ function gPlayerStat(pid) {
   return { wins, losses, played: rounds.length, best, worst, avg, streak };
 }
 
-function renderGame() {
+async function renderGame() {
+  document.getElementById('gameLeaderboard').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text2);font-size:13px">載入中…</div>';
+  document.getElementById('gameStats').innerHTML = '';
+  document.getElementById('gameRoundList').innerHTML = '';
+  await loadGData();
   renderGameLeaderboard();
   renderGameStats();
   renderGameRoundList();
@@ -2932,32 +2945,32 @@ function openAddGamePlayer() {
   setTimeout(()=>document.getElementById('gamePlayerName').focus(), 200);
 }
 
-function addGamePlayerFromMember(memberId) {
+async function addGamePlayerFromMember(memberId) {
   const m = (state.members||[]).find(x=>x.id===memberId);
   if (!m) return;
   if (gData.players.find(p=>p.ref_id===memberId)) { showToast('已加入'); return; }
   gData.players.push({ id:'g'+Date.now(), ref_id:m.id, name:m.name, avatar_url:m.avatar_url||null, emoji:m.emoji });
-  saveGData();
+  await saveGData();
   document.getElementById('gamePlayerModal').classList.remove('open');
-  renderGame();
+  renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
   showToast(m.name+' 已加入！');
 }
 
-function confirmAddGamePlayer() {
+async function confirmAddGamePlayer() {
   const name = document.getElementById('gamePlayerName').value.trim();
   if (!name) { showToast('請輸入名稱'); return; }
   if (gData.players.find(p=>p.name===name)) { showToast('已有同名玩家'); return; }
   gData.players.push({ id:'g'+Date.now(), name });
-  saveGData();
+  await saveGData();
   document.getElementById('gamePlayerModal').classList.remove('open');
-  renderGame();
+  renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
 
-function removeGamePlayer(id) {
+async function removeGamePlayer(id) {
   if (!confirm('確定移除這位玩家？該玩家的所有記錄也會一併移除。')) return;
   gData.players = gData.players.filter(p=>p.id!==id);
   gData.rounds.forEach(r=>{ delete r.scores[id]; });
-  saveGData(); renderGame();
+  await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
 
 let editingRoundId = null;
@@ -2995,7 +3008,7 @@ function updateGSum() {
   el.style.color = sum===0 ? 'var(--success)' : 'var(--danger)';
 }
 function closeGameRoundModal() { document.getElementById('gameRoundModal').classList.remove('open'); }
-function saveGameRound() {
+async function saveGameRound() {
   const scores = {};
   gData.players.forEach(p => { scores[p.id] = parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
   if (editingRoundId) {
@@ -3005,18 +3018,21 @@ function saveGameRound() {
     const today = new Date().toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'});
     gData.rounds.push({ id:'r'+Date.now(), date:today, scores });
   }
-  saveGData(); closeGameRoundModal(); renderGame();
-  showToast(editingRoundId ? '已更新' : '記錄完成！');
+  const msg = editingRoundId ? '已更新' : '記錄完成！';
+  closeGameRoundModal();
+  await saveGData();
+  renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
+  showToast(msg);
 }
-function deleteGameRound(id) {
+async function deleteGameRound(id) {
   if (!confirm('確定刪除這局？')) return;
   gData.rounds = gData.rounds.filter(r=>r.id!==id);
-  saveGData(); renderGame();
+  await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
-function confirmResetGame() {
+async function confirmResetGame() {
   if (!confirm('確定重置所有對局記錄？玩家名單保留，分數歸零。')) return;
   gData.rounds = [];
-  saveGData(); renderGame();
+  await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
 
 // ─── AUTO UPDATE CHECK ────────────────────────────────────────────────────────
