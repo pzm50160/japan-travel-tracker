@@ -253,7 +253,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .split-total-check.err span:last-child{color:var(--danger)}
 /* MEMOIR */
 .memoir-cover{background:linear-gradient(135deg,#E8682A 0%,#F5A878 50%,#FFD4A8 100%);border-radius:var(--radius);padding:28px 20px;text-align:center;margin-bottom:12px;position:relative;overflow:hidden}
-.memoir-cover::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")}
+.memoir-cover::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,0.35),rgba(0,0,0,0.5))}
 .memoir-cover-title{font-size:22px;font-weight:700;color:white;margin-bottom:4px;position:relative}
 .memoir-cover-sub{font-size:12px;color:rgba(255,255,255,.8);position:relative}
 .memoir-content{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:20px;margin-bottom:12px;line-height:1.8;font-size:14px;white-space:pre-wrap;word-break:break-word}
@@ -1401,14 +1401,28 @@ function openCoverPicker(idx) {
 
 function handleCoverPhoto(file) {
   if (!file) return;
-  openCropperWith(file, async dataUrl => {
-    const covers = [...(state.trip?.cover_photos || DEFAULT_COVERS)];
-    covers[0] = dataUrl;
-    await sb.from('trips').update({ cover_photos: covers }).eq('id', state.tripId);
-    state.trip.cover_photos = covers;
-    renderHeroBanner();
-    showToast('封面已更新！');
-  });
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const maxW = 900, maxH = 500;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const ratio = Math.min(maxW / w, maxH / h, 1);
+      canvas.width = Math.round(w * ratio);
+      canvas.height = Math.round(h * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      const covers = [...(state.trip?.cover_photos || DEFAULT_COVERS)];
+      covers[0] = dataUrl;
+      await sb.from('trips').update({ cover_photos: covers }).eq('id', state.tripId);
+      state.trip.cover_photos = covers;
+      renderHeroBanner();
+      showToast('封面已更新！');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 // ─── HOME ──────────────────────────────────────────────────────────────────────
@@ -1417,10 +1431,11 @@ function renderHome() {
   const t = state.trip;
   renderHeroBanner();
   document.getElementById('tripTitle').textContent = t.name;
-  const today = new Date().toISOString().split('T')[0];
-  const start = new Date(t.start_date), end = new Date(t.end_date), now = new Date();
-  const total = Math.ceil((end-start)/86400000) + 1;
-  const day = Math.max(1, Math.min(Math.ceil((now-start)/86400000)+1, total));
+  const today = new Date().toLocaleDateString('en-CA');
+  const start = new Date(t.start_date), end = new Date(t.end_date);
+  const total = Math.round((end-start)/86400000) + 1;
+  const todayDate = new Date(today);
+  const day = Math.max(1, Math.min(Math.round((todayDate-start)/86400000) + 1, total));
   document.getElementById('dayNum').textContent = 'Day ' + day;
   document.getElementById('daySub').textContent = '共 ' + total + ' 天';
   const todayExp = state.expenses.filter(e=>e.date===today);
@@ -1529,20 +1544,42 @@ function renderSplit() {
   document.getElementById('perMemberStats').innerHTML = state.members.map(m=>{
     const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+toTWD(e),0);
     const owed=state.expenses.reduce((a,e)=>{const sh=getShares(e);return a+(sh[m.id]||0);},0);
-    const partExps=state.expenses.filter(e=>{
+    const partExps=[...state.expenses].filter(e=>{
       if(e.split_mode==='payer')return e.payer_id===m.id;
       if(e.split_mode==='custom')return(e.participants||{})[m.id]>0;
       return Object.entries(e.participants||{}).some(([id,v])=>id===m.id&&v);
-    });
-    return '<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px"><div style="padding:9px 13px;display:flex;align-items:center;gap:9px;background:var(--bg)"><div style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border);overflow:hidden">'+memberAvatar(m)+'</div><span style="font-size:13px;font-weight:600">'+m.name+'</span></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--border)"><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">NT$'+Math.round(paid).toLocaleString()+'</div></div><div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">應付金額</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">NT$'+Math.round(owed).toLocaleString()+'</div></div><div style="padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">參與筆數</div><div style="font-size:12px;font-weight:700;font-family:\'DM Mono\',monospace">'+partExps.length+' 筆</div></div></div></div>';
+    }).sort((a,b)=>a.date.localeCompare(b.date));
+    const rows=partExps.map(e=>{
+      const share=getShares(e)[m.id]||0;
+      const isPayer=e.payer_id===m.id;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:7px 13px;border-bottom:1px solid var(--border);font-size:11px">
+        <span style="color:var(--text3);flex-shrink:0;font-family:'DM Mono',monospace">${e.date.slice(5)}</span>
+        <span style="flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.name}${e.store?' · '+e.store:''}</span>
+        <span style="flex-shrink:0;color:var(--text2)">${e.cat}</span>
+        ${isPayer?`<span style="flex-shrink:0;font-size:10px;color:var(--orange);background:var(--orange-light);padding:1px 5px;border-radius:10px">付款</span>`:''}
+        <span style="flex-shrink:0;font-weight:600;font-family:'DM Mono',monospace;color:${isPayer?'var(--success)':'var(--text)'}">NT$${Math.round(share).toLocaleString()}</span>
+      </div>`;
+    }).join('');
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px">
+      <div style="padding:9px 13px;display:flex;align-items:center;gap:9px;background:var(--bg)">
+        <div style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border);overflow:hidden">${memberAvatar(m)}</div>
+        <span style="font-size:13px;font-weight:600;flex:1">${m.name}</span>
+        <span style="font-size:11px;color:var(--text2)">${partExps.length} 筆</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
+        <div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace">NT$${Math.round(paid).toLocaleString()}</div></div>
+        <div style="padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">應分攤</div><div style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace">NT$${Math.round(owed).toLocaleString()}</div></div>
+      </div>
+      ${rows?`<div style="max-height:220px;overflow-y:auto">${rows}</div>`:''}
+    </div>`;
   }).join('');
 }
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
 function renderStats(){renderTrend();renderDonut('catChart','catLegend',CATS,CAT_COLORS,'cat');renderDonut('payChart','payLegend',PAYS,PAY_COLORS,'pay');renderTop10();}
-function renderTrend(){const byDate={};state.expenses.forEach(e=>{byDate[e.date]=(byDate[e.date]||0)+e.amount;});const dates=Object.keys(byDate).sort();const ctx=document.getElementById('trendChart').getContext('2d');if(charts.trend)charts.trend.destroy();charts.trend=new Chart(ctx,{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'¥',data:dates.map(d=>byDate[d]),borderColor:'#E8682A',backgroundColor:'rgba(232,104,42,0.08)',tension:0.4,fill:true,pointBackgroundColor:'#E8682A',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#A09890'}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#A09890',callback:v=>'¥'+v.toLocaleString()}}}}});}
-function renderDonut(cid,lid,keys,colors,field){const totals={};state.expenses.forEach(e=>{totals[e[field]]=(totals[e[field]]||0)+e.amount;});const total=Object.values(totals).reduce((a,b)=>a+b,0)||1;const ctx=document.getElementById(cid).getContext('2d');if(cid==='catChart'&&charts.cat)charts.cat.destroy();if(cid==='payChart'&&charts.pay)charts.pay.destroy();const ch=new Chart(ctx,{type:'doughnut',data:{labels:keys,datasets:[{data:keys.map(k=>totals[k]||0),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});if(cid==='catChart')charts.cat=ch;else charts.pay=ch;document.getElementById(lid).innerHTML=keys.map((k,i)=>{const v=totals[k]||0;if(!v)return'';return'<div class="legend-row"><div class="legend-left"><div class="legend-dot" style="background:'+colors[i]+'"></div><span class="legend-label">'+k+'</span></div><div class="legend-right"><span class="legend-pct">'+Math.round(v/total*100)+'%</span><span class="legend-val">¥'+(v/1000).toFixed(1)+'k</span></div></div>';}).join('');}
-function renderTop10(){const sorted=[...state.expenses].sort((a,b)=>b.amount-a.amount).slice(0,10);const max=sorted[0]?.amount||1;document.getElementById('top10List').innerHTML=sorted.map((e,i)=>'<div class="top10-row"><span class="top10-rank '+(i<3?'top3':'')+'">'+(i+1)+'</span><div class="top10-bar-wrap"><div class="top10-name">'+e.name+(e.store?' · '+e.store:'')+'</div><div class="top10-bar"><div class="top10-bar-fill" style="width:'+Math.round(e.amount/max*100)+'%"></div></div></div><span class="top10-amt">'+fmtJPY(e.amount)+'</span></div>').join('');}
+function renderTrend(){const byDate={};state.expenses.forEach(e=>{byDate[e.date]=(byDate[e.date]||0)+toTWD(e);});const dates=Object.keys(byDate).sort();const ctx=document.getElementById('trendChart').getContext('2d');if(charts.trend)charts.trend.destroy();charts.trend=new Chart(ctx,{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'NT$',data:dates.map(d=>byDate[d]),borderColor:'#E8682A',backgroundColor:'rgba(232,104,42,0.08)',tension:0.4,fill:true,pointBackgroundColor:'#E8682A',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#A09890'}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#A09890',callback:v=>'NT$'+v.toLocaleString()}}}}});}
+function renderDonut(cid,lid,keys,colors,field){const totals={};state.expenses.forEach(e=>{totals[e[field]]=(totals[e[field]]||0)+toTWD(e);});const total=Object.values(totals).reduce((a,b)=>a+b,0)||1;const ctx=document.getElementById(cid).getContext('2d');if(cid==='catChart'&&charts.cat)charts.cat.destroy();if(cid==='payChart'&&charts.pay)charts.pay.destroy();const ch=new Chart(ctx,{type:'doughnut',data:{labels:keys,datasets:[{data:keys.map(k=>totals[k]||0),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});if(cid==='catChart')charts.cat=ch;else charts.pay=ch;document.getElementById(lid).innerHTML=keys.map((k,i)=>{const v=totals[k]||0;if(!v)return'';return'<div class="legend-row"><div class="legend-left"><div class="legend-dot" style="background:'+colors[i]+'"></div><span class="legend-label">'+k+'</span></div><div class="legend-right"><span class="legend-pct">'+Math.round(v/total*100)+'%</span><span class="legend-val">NT$'+(v/1000).toFixed(1)+'k</span></div></div>';}).join('');}
+function renderTop10(){const sorted=[...state.expenses].map(e=>({...e,_twd:toTWD(e)})).sort((a,b)=>b._twd-a._twd).slice(0,10);const max=sorted[0]?._twd||1;document.getElementById('top10List').innerHTML=sorted.map((e,i)=>'<div class="top10-row"><span class="top10-rank '+(i<3?'top3':'')+'">'+(i+1)+'</span><div class="top10-bar-wrap"><div class="top10-name">'+e.name+(e.store?' · '+e.store:'')+'</div><div class="top10-bar"><div class="top10-bar-fill" style="width:'+Math.round(e._twd/max*100)+'%"></div></div></div><span class="top10-amt">NT$'+Math.round(e._twd).toLocaleString()+'</span></div>').join('');}
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function renderSettings() {
@@ -1650,7 +1687,7 @@ function openAddModal() {
   state.selectedPayer = state.myMemberId || state.members[0]?.id;
   state.selectedCat='餐飲'; state.selectedPay='現金'; state.splitMode='equal';
   state.participants = {}; state.members.forEach(m=>{state.participants[m.id]=true;});
-  state.currency = 'JPY'; state.pendingPhotoBase64 = null; state.pendingPhotoUrl = null;
+  state.currency = 'JPY'; state.pendingPhotoBase64 = null; state.pendingPhotoUrl = null; state.lockedShares = {};
   document.getElementById('modalTitle').textContent = '新增花費';
   document.getElementById('mName').value = '';
   document.getElementById('mAmt').value = '';
@@ -1679,6 +1716,7 @@ function openEditModal(id) {
   state.selectedCat = e.cat; state.selectedPay = e.pay;
   state.splitMode = e.split_mode || 'equal';
   state.participants = {...(e.participants||{})};
+  state.lockedShares = {};
   state.currency = e.currency || 'JPY';
   state.pendingPhotoBase64 = null;
   state.pendingPhotoUrl = e.photo_url || null;
@@ -1734,7 +1772,7 @@ function setSplitMode(mode,btn){
   state.splitMode=mode;
   document.querySelectorAll('.split-mode-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
   if(mode==='equal'){state.members.forEach(m=>{if(!(m.id in state.participants))state.participants[m.id]=true;});}
-  else if(mode==='custom'){const amt=parseFloat(document.getElementById('mAmt').value)||0;const each=state.members.length?Math.round(amt/state.members.length):0;const p={};state.members.forEach(m=>{p[m.id]=each;});state.participants=p;}
+  else if(mode==='custom'){state.lockedShares={};const amt=parseFloat(document.getElementById('mAmt').value)||0;const each=state.members.length?Math.round(amt/state.members.length):0;const p={};state.members.forEach(m=>{p[m.id]=each;});state.participants=p;}
   else if(mode==='payer'){state.participants={};}
   renderParticipants();
 }
@@ -1749,15 +1787,42 @@ function renderParticipants(){
     cont.innerHTML=state.members.map(m=>{const checked=!!state.participants[m.id];return '<div class="participant-row"><div class="participant-check '+(checked?'checked':'')+'" onclick="togglePart(\''+m.id+'\')">'+( checked?'<svg width="10" height="10" viewBox="0 0 24 24" fill="white"><polyline points="20,6 9,17 4,12"/></svg>':'')+'</div><div class="participant-av">'+memberAvatar(m)+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div style="font-size:11px;color:var(--text3);font-family:\'DM Mono\',monospace">'+(checked&&each>0?fmtCur(each):'-')+'</div></div>';}).join('');
     checkEl.style.display='none';return;
   }
-  const customTotal=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);
-  const ok=Math.abs(customTotal-amt)<1;
-  cont.innerHTML=state.members.map(m=>{const val=state.participants[m.id]||0;return '<div class="participant-row"><div class="participant-av">'+memberAvatar(m)+'</div><div class="participant-name">'+m.name+(m.id===state.selectedPayer?' 👑':'')+'</div><div class="participant-share"><input type="number" value="'+(val||'')+'" placeholder="0" min="0" oninput="setCustomShare(\''+m.id+'\',this.value)"></div></div>';}).join('');
+  // 自訂模式：鎖定已手動輸入的人，其餘自動平均剩餘金額
+  if (!state.lockedShares) state.lockedShares = {};
+  const locked = state.lockedShares;
+  const lockedTotal = Object.entries(locked).reduce((a,[,v])=>a+(parseFloat(v)||0),0);
+  const unlockedMembers = state.members.filter(m => !locked[m.id]);
+  const remaining = Math.max(0, amt - lockedTotal);
+  const autoEach = unlockedMembers.length ? Math.round(remaining / unlockedMembers.length) : 0;
+  // 同步 participants
+  state.members.forEach(m => {
+    state.participants[m.id] = locked[m.id] !== undefined ? parseFloat(locked[m.id])||0 : autoEach;
+  });
+  const customTotal = Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);
+  const ok = Math.abs(customTotal - amt) < 1;
+  cont.innerHTML = state.members.map(m => {
+    const isLocked = locked[m.id] !== undefined;
+    const val = isLocked ? locked[m.id] : autoEach;
+    return `<div class="participant-row">
+      <div class="participant-av">${memberAvatar(m)}</div>
+      <div class="participant-name">${m.name}${m.id===state.selectedPayer?' 👑':''}</div>
+      <div class="participant-share" style="display:flex;align-items:center;gap:5px">
+        <input type="number" value="${val||''}" placeholder="0" min="0"
+          style="border-color:${isLocked?'var(--orange)':'var(--border)'}"
+          oninput="setCustomShare('${m.id}',this.value)"
+          onblur="lockShare('${m.id}',this.value)">
+        ${isLocked ? `<span onclick="unlockShare('${m.id}')" title="解除鎖定" style="cursor:pointer;font-size:13px;color:var(--orange)">🔒</span>` : `<span style="font-size:11px;color:var(--text3)">自動</span>`}
+      </div>
+    </div>`;
+  }).join('');
   checkEl.style.display='flex';
   checkEl.className='split-total-check '+(ok?'ok':'err');
   document.getElementById('splitTotalVal').textContent=fmtCur(customTotal)+' / '+fmtCur(amt);
 }
 function togglePart(id){state.participants[id]=!state.participants[id];renderParticipants();}
-function setCustomShare(id,val){state.participants[id]=parseFloat(val)||0;const amt=parseFloat(document.getElementById('mAmt').value)||0;const total=Object.values(state.participants).reduce((a,v)=>a+(parseFloat(v)||0),0);const ok=Math.abs(total-amt)<1;document.getElementById('splitTotalCheck').className='split-total-check '+(ok?'ok':'err');document.getElementById('splitTotalVal').textContent=fmtCur(total)+' / '+fmtCur(amt);}
+function lockShare(id,val){if(!val&&val!=='0')return;if(!state.lockedShares)state.lockedShares={};state.lockedShares[id]=parseFloat(val)||0;renderParticipants();}
+function unlockShare(id){if(state.lockedShares)delete state.lockedShares[id];renderParticipants();}
+function setCustomShare(id,val){if(!state.lockedShares)state.lockedShares={};state.lockedShares[id]=parseFloat(val)||0;renderParticipants();}
 function closeModal(){document.getElementById('addModal').classList.remove('open');}
 
 async function saveExpense() {
@@ -1929,7 +1994,7 @@ async function renderMemoir() {
 
   const isArchived = t.archived;
   const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
-  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000) || 1;
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000) + 1 || 1;
   const photos = state.expenses.filter(e=>e.photo_url).map(e=>e.photo_url);
   const memoirText = t.memoir_text || '';
   const memberNames = state.members.map(m=>m.name).join('、');
@@ -1943,9 +2008,10 @@ async function renderMemoir() {
     return Object.entries(s).sort((a,b)=>b[1]-a[1])[0];
   })();
 
+  const coverImg = (t.cover_photos && t.cover_photos[0]) || '';
   let html = `
-    <div class="memoir-cover">
-      <div style="font-size:44px;margin-bottom:8px">📖</div>
+    <div class="memoir-cover" style="${coverImg ? `background:url('${coverImg}') center/cover no-repeat;` : ''}">
+      ${!coverImg ? '<div style="font-size:44px;margin-bottom:8px">📖</div>' : ''}
       <div class="memoir-cover-title">${t.name}</div>
       <div class="memoir-cover-sub">${t.start_date} ～ ${t.end_date} · ${memberNames}</div>
       ${isArchived ? '<div style="margin-top:10px"><span class="archived-badge">✓ 已封存</span></div>' : ''}
@@ -1955,7 +2021,7 @@ async function renderMemoir() {
     <div class="memoir-stat-grid">
       <div class="memoir-stat"><div class="memoir-stat-val">${days}</div><div class="memoir-stat-label">旅行天數</div></div>
       <div class="memoir-stat"><div class="memoir-stat-val">${state.expenses.length}</div><div class="memoir-stat-label">消費筆數</div></div>
-      <div class="memoir-stat"><div class="memoir-stat-val">NT$${Math.round(totalTWD/days).toLocaleString()}</div><div class="memoir-stat-label">日均花費</div></div>
+      <div class="memoir-stat"><div class="memoir-stat-val">NT$${Math.round(totalTWD/days).toLocaleString()}</div><div class="memoir-stat-label">所有人日均花費</div></div>
       <div class="memoir-stat"><div class="memoir-stat-val">${topCat?topCat[0]:'—'}</div><div class="memoir-stat-label">最大支出類別</div></div>
     </div>`;
 
