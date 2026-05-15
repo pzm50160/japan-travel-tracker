@@ -1995,22 +1995,32 @@ async function getExifOrientation(file) {
   return new Promise(resolve => {
     const r = new FileReader();
     r.onload = e => {
-      const v = new DataView(e.target.result);
-      if (v.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
-      let off = 2;
-      while (off < e.target.result.byteLength) {
-        const marker = v.getUint16(off, false); off += 2;
-        if (marker === 0xFFE1) {
-          if (v.getUint32(off + 2, false) !== 0x45786966) { resolve(1); return; }
-          const le = v.getUint16(off + 8, false) === 0x4949;
-          off += 10;
-          const tags = v.getUint16(off, le); off += 2;
-          for (let i = 0; i < tags; i++) {
-            if (v.getUint16(off + i * 12, le) === 0x0112) { resolve(v.getUint16(off + i * 12 + 8, le)); return; }
+      try {
+        const buf = e.target.result;
+        const v = new DataView(buf);
+        if (v.getUint16(0, false) !== 0xFFD8) { resolve(1); return; }
+        let off = 2;
+        while (off + 4 < buf.byteLength) {
+          const marker = v.getUint16(off, false);
+          off += 2;
+          if (marker === 0xFFE1) {
+            // "Exif\0\0" starts at off+2 (after 2-byte segment length)
+            if (v.getUint32(off + 2, false) !== 0x45786966) { resolve(1); return; }
+            const tiff = off + 8; // TIFF header: byte order mark
+            const le = v.getUint16(tiff, false) === 0x4949;
+            const ifd0 = tiff + v.getUint32(tiff + 4, le); // IFD0 abs position
+            if (ifd0 + 2 > buf.byteLength) { resolve(1); return; }
+            const nTags = v.getUint16(ifd0, le);
+            for (let i = 0; i < nTags && ifd0 + 2 + (i + 1) * 12 <= buf.byteLength; i++) {
+              const t = ifd0 + 2 + i * 12;
+              if (v.getUint16(t, le) === 0x0112) { resolve(v.getUint16(t + 8, le)); return; }
+            }
+            resolve(1); return;
           }
-        } else if ((marker & 0xFF00) !== 0xFF00) break;
-        else off += v.getUint16(off, false);
-      }
+          if ((marker & 0xFF00) !== 0xFF00) break;
+          off += v.getUint16(off, false); // advance past segment
+        }
+      } catch(_) {}
       resolve(1);
     };
     r.readAsArrayBuffer(file.slice(0, 65536));
