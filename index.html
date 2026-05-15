@@ -2216,7 +2216,7 @@ async function renderMemoir() {
   const cont = document.getElementById('memoirContent');
   const t = state.trip;
   if (!t) return;
-  if (!gData.players.length && !gData.rounds.length) await loadGData();
+  if (!gData.sessions?.length) await loadGData();
 
   const isArchived = t.archived;
   const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
