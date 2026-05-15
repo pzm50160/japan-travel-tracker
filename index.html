@@ -545,7 +545,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 <!-- GAME PAGE -->
 <div class="page" id="page-game" style="overflow-x:hidden;touch-action:pan-y">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <div style="font-size:17px;font-weight:700">🃏 大老二計分</div>
+    <div style="font-size:17px;font-weight:700">🃏 牌局計分</div>
     <div style="display:flex;gap:8px;align-items:center">
       <span id="gameSaveIndicator" style="display:none;font-size:11px;color:var(--text2);align-items:center;gap:4px"><span style="display:inline-block;animation:spin .8s linear infinite">⟳</span> 儲存中…</span>
       <button onclick="refreshGameData()" style="background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--text2)">↻ 重新整理</button>
@@ -612,10 +612,20 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <input type="file" id="avatarCamInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <div class="card">
-    <div style="font-size:12px;font-weight:600;margin-bottom:3px">Anthropic API Key</div>
-    <div style="font-size:10px;color:var(--text2);margin-bottom:8px">用於 AI 辨識收據（僅存本機）</div>
-    <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." oninput="saveApiKey()">
-    <div style="font-size:10px;color:var(--success);margin-top:4px" id="apiStatus"></div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px">🤖 AI 回憶錄設定</div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:3px">Anthropic API Key</div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:6px">支援圖片・sk-ant-… （僅存本機）</div>
+    <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." oninput="saveApiKey()" style="margin-bottom:6px">
+    <div style="font-size:10px;color:var(--success);margin-bottom:12px" id="apiStatus"></div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:3px">Google Gemini API Key</div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:6px">支援圖片・AIza… （僅存本機）</div>
+    <input class="form-input" id="googleApiKeyInput" type="password" placeholder="AIza..." oninput="saveGoogleApiKey()" style="margin-bottom:6px">
+    <div style="font-size:10px;color:var(--success);margin-bottom:12px" id="googleApiStatus"></div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px">優先使用</div>
+    <div style="display:flex;gap:8px">
+      <button id="preferAnthropicBtn" onclick="setPreferAI('anthropic')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer">Claude (Anthropic)</button>
+      <button id="preferGoogleBtn" onclick="setPreferAI('google')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer">Gemini (Google)</button>
+    </div>
   </div>
   <div class="card">
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px" onclick="leaveTrip()">🚪 離開此旅程</button>
@@ -786,7 +796,7 @@ let state = {
   tripId: null, trip: null,
   expenses: [], members: [],
   myMemberId: null,
-  apiKey: '',
+  apiKey: '', googleApiKey: '', preferAI: 'anthropic',
   editId: null,
   selectedPayer: null, selectedCat: '餐飲', selectedPay: '現金',
   splitMode: 'equal', participants: {},
@@ -804,6 +814,8 @@ let joinSelEmoji = EMOJIS[0];
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function init() {
   state.apiKey = localStorage.getItem('jpApiKey') || '';
+  state.googleApiKey = localStorage.getItem('jpGoogleApiKey') || '';
+  state.preferAI = localStorage.getItem('jpPreferAI') || 'anthropic';
   const savedTripId = localStorage.getItem('jpTripId');
   const savedMemberId = localStorage.getItem('jpMemberId');
 
@@ -1711,7 +1723,10 @@ function renderSettings() {
   document.getElementById('settingRate').value = t.rate;
   document.getElementById('inviteCodeDisplay').textContent = t.invite_code || '------';
   document.getElementById('apiKeyInput').value = state.apiKey;
-  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : '';
+  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ 已儲存' : '';
+  document.getElementById('googleApiKeyInput').value = state.googleApiKey;
+  document.getElementById('googleApiStatus').textContent = state.googleApiKey ? '✓ 已儲存' : '';
+  setPreferAI(state.preferAI);
   document.getElementById('memberCount').textContent = state.members.length;
   document.getElementById('memberList').innerHTML = state.members.map(m => {
     const isMe = m.id === state.myMemberId;
@@ -1797,7 +1812,22 @@ async function removeMember(memberId, memberName) {
   showToast(`已移除 ${memberName}`);
 }
 
-function saveApiKey() { state.apiKey = document.getElementById('apiKeyInput').value; localStorage.setItem('jpApiKey', state.apiKey); document.getElementById('apiStatus').textContent = state.apiKey ? '✓ API Key 已儲存' : ''; }
+function saveApiKey() {
+  state.apiKey = document.getElementById('apiKeyInput').value;
+  localStorage.setItem('jpApiKey', state.apiKey);
+  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ 已儲存' : '';
+}
+function saveGoogleApiKey() {
+  state.googleApiKey = document.getElementById('googleApiKeyInput').value;
+  localStorage.setItem('jpGoogleApiKey', state.googleApiKey);
+  document.getElementById('googleApiStatus').textContent = state.googleApiKey ? '✓ 已儲存' : '';
+}
+function setPreferAI(ai) {
+  state.preferAI = ai;
+  localStorage.setItem('jpPreferAI', ai);
+  document.getElementById('preferAnthropicBtn').style.cssText = `flex:1;padding:8px;border-radius:8px;border:1px solid ${ai==='anthropic'?'var(--orange)':'var(--border)'};background:${ai==='anthropic'?'var(--orange-light)':'transparent'};font-size:12px;cursor:pointer;font-weight:${ai==='anthropic'?'600':'400'}`;
+  document.getElementById('preferGoogleBtn').style.cssText = `flex:1;padding:8px;border-radius:8px;border:1px solid ${ai==='google'?'var(--orange)':'var(--border)'};background:${ai==='google'?'var(--orange-light)':'transparent'};font-size:12px;cursor:pointer;font-weight:${ai==='google'?'600':'400'}`;
+}
 function copyInviteCode() { navigator.clipboard.writeText(state.trip?.invite_code || '').then(()=>showToast('邀請碼已複製！')); }
 
 // ─── ADD/EDIT MODAL ───────────────────────────────────────────────────────────
@@ -2386,6 +2416,11 @@ async function renderMemoir() {
         <span style="font-size:12px;font-weight:600">匯出 HTML</span>
         <span style="font-size:10px;color:var(--text2)">完整網頁版本</span>
       </button>
+      <button class="export-btn" onclick="exportAIPrompt()" style="grid-column:span 2">
+        <span style="font-size:20px">🤖</span>
+        <span style="font-size:12px;font-weight:600">匯出 AI 素材</span>
+        <span style="font-size:10px;color:var(--text2)">下載後貼到任何 AI 生成回憶錄</span>
+      </button>
     </div>
   </div>`;
 
@@ -2401,11 +2436,12 @@ function formatMemoirText(text) {
 }
 
 async function generateMemoir(regenerate) {
-  if (!state.apiKey) { showToast('請先在設定填入 API Key'); return; }
+  if (!state.apiKey && !state.googleApiKey) { showToast('請先在設定填入 API Key'); return; }
+  const useGoogle = (state.preferAI==='google' && state.googleApiKey) || (!state.apiKey && state.googleApiKey);
   const body = document.getElementById('memoirBody');
   body.innerHTML = `<div class="memoir-generating">
     <div class="memoir-gen-icon">✍️</div>
-    <div style="font-size:14px;font-weight:500;margin-bottom:6px">AI 正在撰寫你的回憶錄...</div>
+    <div style="font-size:14px;font-weight:500;margin-bottom:6px">${useGoogle?'Gemini':'Claude'} 正在撰寫你的回憶錄...</div>
     <div style="font-size:12px;color:var(--text2)">根據 ${state.expenses.length} 筆消費記錄分析中</div>
   </div>`;
 
@@ -2414,66 +2450,149 @@ async function generateMemoir(regenerate) {
   const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000) || 1;
   const memberNames = state.members.map(m=>m.name).join('、');
 
-  // 建構給 AI 的資料摘要
+  // 分類消費
   const catBreakdown = CATS.map(c=>{
     const sum=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);
     return sum>0 ? `${c}：NT$${Math.round(sum).toLocaleString()}` : null;
   }).filter(Boolean).join('、');
 
-  const topStores = (() => {
-    const s={}; state.expenses.filter(e=>e.store).forEach(e=>{ s[e.store]=(s[e.store]||0)+toTWD(e); });
-    return Object.entries(s).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=>`${k}（NT$${Math.round(v).toLocaleString()}）`).join('、');
-  })();
+  // 每人花費
+  const memberSpend = state.members.map(m=>{
+    const paid = state.expenses.filter(e=>e.paid_by===m.id).reduce((a,e)=>a+toTWD(e),0);
+    return paid>0 ? `${m.name} 付了 NT$${Math.round(paid).toLocaleString()}（${state.expenses.filter(e=>e.paid_by===m.id).length} 筆）` : null;
+  }).filter(Boolean).join('、');
 
+  // 支付方式
+  const payBreakdown = PAYS.map(pay=>{
+    const sum=state.expenses.filter(e=>e.pay===pay).reduce((a,e)=>a+toTWD(e),0);
+    return sum>0 ? `${pay}：NT$${Math.round(sum).toLocaleString()}` : null;
+  }).filter(Boolean).join('、');
+
+  // 每日完整記錄
   const byDate = {};
   state.expenses.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
   const dailySummary = Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,exps])=>{
-    const sum=exps.reduce((a,e)=>a+toTWD(e),0);
-    const items=exps.slice(0,3).map(e=>e.name+(e.store?` @ ${e.store}`:'')).join('、');
-    return `${date}：${items}（NT$${Math.round(sum).toLocaleString()}）`;
-  }).join('\n');
+    const sum = exps.reduce((a,e)=>a+toTWD(e),0);
+    const payer = m => state.members.find(x=>x.id===m)?.name || '';
+    const items = exps.map(e=>{
+      let line = `  · ${e.name}`;
+      if (e.store) line += ` @ ${e.store}`;
+      line += ` [${e.cat}] NT$${Math.round(toTWD(e)).toLocaleString()}`;
+      if (e.paid_by) line += ` (${payer(e.paid_by)}付)`;
+      if (e.note) line += ` ※${e.note}`;
+      return line;
+    }).join('\n');
+    return `${date}（當日共 NT$${Math.round(sum).toLocaleString()}）\n${items}`;
+  }).join('\n\n');
 
-  const prompt = `你是一位溫暖有文采的旅遊作家，請根據以下旅行資料，用繁體中文寫一篇約 600-800 字的旅程回憶錄。
+  // 有備註的項目
+  const notes = state.expenses.filter(e=>e.note).map(e=>`${e.date} ${e.name}：「${e.note}」`).join('\n');
 
+  // 牌局資料
+  let gameSection = '';
+  const gameSessions = (gData.sessions||[]).filter(s=>s.rounds?.length);
+  if (gameSessions.length) {
+    gameSection = '\n\n【旅途牌局：大老二戰績】\n';
+    gameSessions.forEach(sess => {
+      const totals = {};
+      sess.players.forEach(p=>{ totals[p.id]=0; });
+      sess.rounds.forEach(r=>Object.entries(r.scores).forEach(([id,v])=>{ if(id in totals) totals[id]+=v; }));
+      const ranking = [...sess.players].sort((a,b)=>totals[b.id]-totals[a.id])
+        .map((p,i)=>`第${i+1}名 ${p.name}（${totals[p.id]>=0?'+':''}${totals[p.id]}分）`).join('、');
+      gameSection += `${sess.name}（${sess.rounds.length}局）：${ranking}\n`;
+    });
+  }
+
+  const prompt = `你是一位溫暖有文采的旅遊作家，請根據以下完整旅行資料，用繁體中文寫一篇約 800-1000 字的旅程回憶錄。資料很豐富，請盡量從中挖掘有趣的細節和故事。
+
+【基本資訊】
 旅程名稱：${t.name}
 旅行期間：${t.start_date} ～ ${t.end_date}（${days} 天）
 旅伴：${memberNames}
 總花費：NT$${Math.round(totalTWD).toLocaleString()}
 
-消費分類：${catBreakdown}
+【消費分類】
+${catBreakdown}
 
-常去地點：${topStores || '無'}
+【每人花費】
+${memberSpend || '無'}
 
-每日記錄：
+【支付方式】
+${payBreakdown || '無'}
+
+【每日完整消費記錄】
 ${dailySummary}
+${notes ? `\n【旅途備忘錄】\n${notes}` : ''}${gameSection}
 
-請用以下格式撰寫：
+請用以下格式撰寫，文字要充滿溫度和畫面感：
+
 ## 旅程序章
 （溫暖的開場，描述出發的心情和期待）
 
 ## 旅途足跡
-（依時間描述每天的精彩時刻，從消費記錄推測去了哪些地方、吃了什麼、買了什麼紀念品）
+（依時間描述每天的精彩時刻，從消費記錄推測去了哪些地方、吃了什麼、買了什麼，提到具體店名讓故事更生動）
 
-## 美食與記憶
-（聚焦餐飲和購物的美好體驗）
+## 美食與購物
+（聚焦餐飲和購物的美好體驗，可從備註中挖掘小故事）
 
 ## 旅行花絮
-（有趣的小故事或感受，可從消費數據中找靈感，例如買藥代表身體不適但仍堅持旅行）
+（有趣的小故事，例如買藥代表有人身體不適仍堅持旅行、深夜的消費代表夜生活豐富${gameSessions.length?'、牌局的勝負與笑聲':''})
 
 ## 旅程尾聲
-（溫馨的結尾，總結這段旅程的意義）
+（溫馨結尾，總結這段旅程的意義與珍貴回憶）`;
 
-請讓文字充滿溫度和畫面感，讓人讀完有身歷其境的感覺。`;
+  // 照片（最多 12 張，Claude 可以看到內容）
+  const photoExps = state.expenses.filter(e=>e.photo_url).slice(0, 20);
+  const messageContent = [];
+  messageContent.push({ type:'text', text: prompt });
+  if (photoExps.length) {
+    messageContent.push({ type:'text', text:'\n\n以下是旅途中拍攝的照片，請根據照片內容豐富回憶錄的描述（可描述食物外觀、地點風景、購物戰利品等）：\n' });
+    photoExps.forEach(e => {
+      messageContent.push({ type:'image', source:{ type:'url', url:e.photo_url } });
+      messageContent.push({ type:'text', text:`（${e.date}・${e.name}${e.store?' @ '+e.store:''}）\n` });
+    });
+  }
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01' },
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:prompt}] })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error.message);
-    const text = data.content.find(c=>c.type==='text')?.text || '';
+    let text = '';
+    if (useGoogle) {
+      // Google Gemini
+      const parts = [{ text: prompt }];
+      if (photoExps.length) {
+        parts.push({ text: '\n\n以下是旅途照片，請根據照片內容豐富回憶錄：\n' });
+        for (const e of photoExps) {
+          try {
+            const r = await fetch(e.photo_url);
+            const blob = await r.blob();
+            const b64 = await new Promise(res => {
+              const rd = new FileReader();
+              rd.onload = () => res(rd.result.split(',')[1]);
+              rd.readAsDataURL(blob);
+            });
+            parts.push({ inline_data: { mime_type: blob.type||'image/jpeg', data: b64 } });
+            parts.push({ text: `（${e.date}・${e.name}${e.store?' @ '+e.store:''}）\n` });
+          } catch(_) {}
+        }
+      }
+      const gresp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${state.googleApiKey}`,
+        { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ contents:[{parts}], generationConfig:{maxOutputTokens:3000} }) }
+      );
+      const gdata = await gresp.json();
+      if (gdata.error) throw new Error(gdata.error.message);
+      text = gdata.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else {
+      // Anthropic Claude
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:3000, messages:[{role:'user',content:messageContent}] })
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error.message);
+      text = data.content.find(c=>c.type==='text')?.text || '';
+    }
     // Save to Supabase
     await sb.from('trips').update({ memoir_text: text }).eq('id', state.tripId);
     state.trip.memoir_text = text;
@@ -2498,6 +2617,112 @@ async function unarchiveTrip() {
   state.trip.archived = false;
   renderMemoir();
   showToast('已解除封存');
+}
+
+// ─── EXPORT: AI PROMPT ───────────────────────────────────────────────────────
+function exportAIPrompt() {
+  const t = state.trip;
+  const totalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
+  const days = Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)+1||1;
+  const memberNames = state.members.map(m=>m.name).join('、');
+
+  const catBreakdown = CATS.map(c=>{
+    const sum=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);
+    return sum>0?`${c}：NT$${Math.round(sum).toLocaleString()}`:null;
+  }).filter(Boolean).join('、');
+
+  const memberSpend = state.members.map(m=>{
+    const paid=state.expenses.filter(e=>e.paid_by===m.id).reduce((a,e)=>a+toTWD(e),0);
+    return paid>0?`${m.name} 付了 NT$${Math.round(paid).toLocaleString()}（${state.expenses.filter(e=>e.paid_by===m.id).length} 筆）`:null;
+  }).filter(Boolean).join('、');
+
+  const payBreakdown = PAYS.map(pay=>{
+    const sum=state.expenses.filter(e=>e.pay===pay).reduce((a,e)=>a+toTWD(e),0);
+    return sum>0?`${pay}：NT$${Math.round(sum).toLocaleString()}`:null;
+  }).filter(Boolean).join('、');
+
+  const byDate={};
+  state.expenses.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
+  const dailySummary = Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,exps])=>{
+    const sum=exps.reduce((a,e)=>a+toTWD(e),0);
+    const payer=m=>state.members.find(x=>x.id===m)?.name||'';
+    const items=exps.map(e=>{
+      let line=`  · ${e.name}`;
+      if(e.store) line+=` @ ${e.store}`;
+      line+=` [${e.cat}] NT$${Math.round(toTWD(e)).toLocaleString()}`;
+      if(e.paid_by) line+=` (${payer(e.paid_by)}付)`;
+      if(e.note) line+=` ※${e.note}`;
+      return line;
+    }).join('\n');
+    return `${date}（當日共 NT$${Math.round(sum).toLocaleString()}）\n${items}`;
+  }).join('\n\n');
+
+  const notes=state.expenses.filter(e=>e.note).map(e=>`${e.date} ${e.name}：「${e.note}」`).join('\n');
+
+  let gameSection='';
+  const gameSessions=(gData.sessions||[]).filter(s=>s.rounds?.length);
+  if(gameSessions.length){
+    gameSection='\n\n【旅途牌局：大老二戰績】\n';
+    gameSessions.forEach(sess=>{
+      const totals={};
+      sess.players.forEach(p=>{totals[p.id]=0;});
+      sess.rounds.forEach(r=>Object.entries(r.scores).forEach(([id,v])=>{if(id in totals)totals[id]+=v;}));
+      const ranking=[...sess.players].sort((a,b)=>totals[b.id]-totals[a.id])
+        .map((p,i)=>`第${i+1}名 ${p.name}（${totals[p.id]>=0?'+':''}${totals[p.id]}分）`).join('、');
+      gameSection+=`${sess.name}（${sess.rounds.length}局）：${ranking}\n`;
+    });
+  }
+
+  const photoExps=state.expenses.filter(e=>e.photo_url);
+  const photoList=photoExps.length
+    ? '\n\n【旅途照片連結（可下載後附給AI）】\n'+photoExps.map((e,i)=>`${i+1}. ${e.date} ${e.name}${e.store?' @ '+e.store:''}\n   ${e.photo_url}`).join('\n')
+    : '';
+
+  const content=`你是一位溫暖有文采的旅遊作家，請根據以下完整旅行資料，用繁體中文寫一篇約 800-1000 字的旅程回憶錄。
+
+【基本資訊】
+旅程名稱：${t.name}
+旅行期間：${t.start_date} ～ ${t.end_date}（${days} 天）
+旅伴：${memberNames}
+總花費：NT$${Math.round(totalTWD).toLocaleString()}
+
+【消費分類】
+${catBreakdown}
+
+【每人花費】
+${memberSpend||'無'}
+
+【支付方式】
+${payBreakdown||'無'}
+
+【每日完整消費記錄】
+${dailySummary}
+${notes?'\n【旅途備忘錄】\n'+notes:''}${gameSection}${photoList}
+
+---
+請用以下格式撰寫，文字要充滿溫度和畫面感：
+
+## 旅程序章
+（溫暖的開場，描述出發的心情和期待）
+
+## 旅途足跡
+（依時間描述每天的精彩時刻，提到具體店名讓故事更生動）
+
+## 美食與購物
+（聚焦餐飲和購物的美好體驗，從備註中挖掘小故事）
+
+## 旅行花絮
+（有趣的小故事，例如買藥、深夜消費、牌局勝負）
+
+## 旅程尾聲
+（溫馨結尾，總結這段旅程的意義與珍貴回憶）`;
+
+  const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${t.name}_AI素材.txt`;
+  a.click();
+  showToast('已下載 AI 素材 📄');
 }
 
 // ─── EXPORT: HTML ─────────────────────────────────────────────────────────────
