@@ -2753,6 +2753,20 @@ async function loadGData() {
   if (!state.tripId) return;
   const { data } = await sb.from('trips').select('game_data').eq('id', state.tripId).single();
   const d = data?.game_data || {};
+  // 一次性遷移：若雲端沒資料但本機有，自動上傳
+  if (!d.rounds?.length && !d.players?.length) {
+    try {
+      const local = JSON.parse(localStorage.getItem('bt_game') || '{}');
+      if (local.players?.length || local.rounds?.length) {
+        gData.players = local.players || [];
+        gData.rounds  = local.rounds  || [];
+        await saveGData();
+        localStorage.removeItem('bt_game');
+        showToast('舊牌局資料已同步到雲端 ✓');
+        return;
+      }
+    } catch(_) {}
+  }
   gData.players = d.players || [];
   gData.rounds  = d.rounds  || [];
 }
