@@ -3062,6 +3062,10 @@ function activeSession() {
 }
 function activePlayers() { return activeSession().players; }
 function activeRounds()  { return activeSession().rounds; }
+function filteredRounds() {
+  const r = activeRounds();
+  return gRoundFilter ? r.slice(-gRoundFilter) : r;
+}
 
 async function loadGData() {
   if (!state.tripId || _gSaving) return;
@@ -3203,8 +3207,13 @@ async function renameSession(id) {
   });
 }
 
+function setGRoundFilter(n) {
+  gRoundFilter = n;
+  renderGameLeaderboard(); renderGameStats();
+}
 function switchSession(id) {
   gData.activeSessionId = id;
+  gRoundFilter = null;
   renderGameSessionTabs();
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
@@ -3234,12 +3243,12 @@ function gAvHtml(p, size=34) {
 function gTotals() {
   const t = {};
   activePlayers().forEach(p => { t[p.id] = 0; });
-  activeRounds().forEach(r => Object.entries(r.scores).forEach(([id,v]) => { if (id in t) t[id] += v; }));
+  filteredRounds().forEach(r => Object.entries(r.scores).forEach(([id,v]) => { if (id in t) t[id] += v; }));
   return t;
 }
 
 function gPlayerStat(pid) {
-  const rounds = activeRounds().filter(r => pid in r.scores);
+  const rounds = filteredRounds().filter(r => pid in r.scores);
   const wins   = rounds.filter(r => r.scores[pid] > 0).length;
   const losses = rounds.filter(r => r.scores[pid] < 0).length;
   const scores = rounds.map(r => r.scores[pid]);
@@ -3248,7 +3257,7 @@ function gPlayerStat(pid) {
   const avg    = scores.length ? (scores.reduce((a,b)=>a+b,0) / scores.length) : 0;
   let streak = 0, cur = 0;
   let lastStreak = 0, curLast = 0;
-  [...activeRounds()].forEach(r => {
+  filteredRounds().forEach(r => {
     if (!(pid in r.scores)) { cur=0; curLast=0; return; }
     if (r.scores[pid] > 0) { cur++; streak = Math.max(streak, cur); } else cur = 0;
     const minScore = Math.min(...Object.values(r.scores));
@@ -3285,14 +3294,25 @@ function renderGameLeaderboard() {
   const totals = gTotals();
   const sorted = [...sess.players].sort((a,b) => totals[b.id] - totals[a.id]);
   const rankIcon = ['🥇','🥈','🥉'];
+  const totalRounds = sess.rounds.length;
+  const filterOptions = [null, 3, 5, 10].filter(n => n === null || n < totalRounds);
+  const filterBar = totalRounds >= 3 ? `<div style="display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);overflow-x:auto">
+    ${filterOptions.map(n => {
+      const active = gRoundFilter === n;
+      const label = n === null ? '全部' : `最後 ${n} 局`;
+      return `<button onclick="setGRoundFilter(${n})" style="white-space:nowrap;padding:4px 10px;border-radius:20px;border:1px solid ${active?'var(--orange)':'var(--border)'};background:${active?'var(--orange)':'var(--bg)'};color:${active?'#fff':'var(--text2)'};font-size:11px;cursor:pointer;font-weight:${active?'600':'400'}">${label}</button>`;
+    }).join('')}
+  </div>` : '';
+  const filterLabel = gRoundFilter ? ` · 最後 ${Math.min(gRoundFilter, totalRounds)} 局小計` : ` · 共 ${totalRounds} 局`;
   cont.innerHTML = `<div class="g-board">
     <div class="g-board-header">
-      <span style="font-size:12px;font-weight:600">${sess.name} · 共 ${sess.rounds.length} 局</span>
+      <span style="font-size:12px;font-weight:600">${sess.name}${filterLabel}</span>
       <div style="display:flex;gap:10px;align-items:center">
         <button onclick="openAddGamePlayer()" style="font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;font-weight:500">＋ 玩家</button>
-        ${sess.rounds.length ? `<button onclick="confirmResetGame()" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer">重置</button>` : ''}
+        ${totalRounds ? `<button onclick="confirmResetGame()" style="font-size:11px;color:var(--danger);background:none;border:none;cursor:pointer">重置</button>` : ''}
       </div>
     </div>
+    ${filterBar}
     ${sorted.map((p,i) => {
       const s = totals[p.id];
       const st = gPlayerStat(p.id);
@@ -3469,7 +3489,7 @@ async function removeGamePlayer(id) {
   await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
 
-let editingRoundId = null, autoCalcPid = null;
+let editingRoundId = null, autoCalcPid = null, gRoundFilter = null;
 function openGameRoundModal(roundId) {
   const sess = activeSession();
   if (!sess.players.length) { showToast('請先新增玩家'); return; }
