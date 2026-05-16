@@ -3469,18 +3469,21 @@ async function removeGamePlayer(id) {
   await saveGData(); renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
 }
 
-let editingRoundId = null;
+let editingRoundId = null, autoCalcPid = null;
 function openGameRoundModal(roundId) {
   const sess = activeSession();
   if (!sess.players.length) { showToast('請先新增玩家'); return; }
   editingRoundId = roundId||null;
+  autoCalcPid = null;
   const round = roundId ? sess.rounds.find(r=>r.id===roundId) : null;
   document.getElementById('gameRoundModalTitle').textContent = roundId ? '✏️ 編輯' : '📝 記錄一局';
   document.getElementById('gameRoundInputs').innerHTML = sess.players.map(p => {
     const val = round ? (round.scores[p.id]||0) : 0;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+    return `<div id="grow_${p.id}" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
       ${gAvHtml(p,34)}
       <span style="font-size:13px;font-weight:600;flex:1">${p.name}</span>
+      <button id="gauto_${p.id}" onclick="toggleAutoCalc('${p.id}')" title="自動計算贏家分數"
+        style="background:none;border:1px solid var(--border);border-radius:8px;padding:3px 7px;font-size:13px;cursor:pointer;color:var(--text2)">🎯</button>
       <div style="display:flex;align-items:center;gap:6px">
         <button onclick="adjustGScore('${p.id}',-1)" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:17px;cursor:pointer;line-height:1">−</button>
         <input type="number" id="gscore_${p.id}" value="${val}" oninput="updateGSum()"
@@ -3497,14 +3500,39 @@ function adjustGScore(pid, delta) {
   inp.value = (parseInt(inp.value)||0) + delta;
   updateGSum();
 }
+function toggleAutoCalc(pid) {
+  autoCalcPid = (autoCalcPid === pid) ? null : pid;
+  activePlayers().forEach(p => {
+    const btn = document.getElementById('gauto_'+p.id);
+    const inp = document.getElementById('gscore_'+p.id);
+    if (!btn || !inp) return;
+    const isAuto = autoCalcPid === p.id;
+    btn.style.background = isAuto ? 'var(--primary)' : 'none';
+    btn.style.color = isAuto ? '#fff' : 'var(--text2)';
+    inp.readOnly = isAuto;
+    inp.style.opacity = isAuto ? '0.5' : '1';
+  });
+  updateGSum();
+}
 function updateGSum() {
+  if (autoCalcPid) {
+    let othersSum = 0;
+    activePlayers().forEach(p => {
+      if (p.id !== autoCalcPid) othersSum += parseInt(document.getElementById('gscore_'+p.id)?.value||0);
+    });
+    const autoInp = document.getElementById('gscore_'+autoCalcPid);
+    if (autoInp) autoInp.value = -othersSum;
+  }
   let sum = 0;
   activePlayers().forEach(p => { sum += parseInt(document.getElementById('gscore_'+p.id)?.value||0); });
   const el = document.getElementById('gameRoundSum');
   el.textContent = (sum>0?'+':'')+sum;
   el.style.color = sum===0 ? 'var(--success)' : 'var(--danger)';
 }
-function closeGameRoundModal() { document.getElementById('gameRoundModal').classList.remove('open'); }
+function closeGameRoundModal() {
+  autoCalcPid = null;
+  document.getElementById('gameRoundModal').classList.remove('open');
+}
 async function saveGameRound() {
   const sess = activeSession();
   const scores = {};
