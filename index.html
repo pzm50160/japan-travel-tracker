@@ -2586,27 +2586,6 @@ async function renderMemoir() {
     }
   } catch(e) { /* 牌局資料異常時不影響回憶錄 */ }
 
-  // AI 回憶錄區塊
-  html += `<div class="card" style="padding:0;overflow:hidden">
-    <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:14px;font-weight:700">✨ AI 旅程回憶錄</span>
-      ${memoirText ? `<button onclick="generateMemoir(true)" style="font-size:11px;color:var(--orange);background:none;border:none;cursor:pointer;font-weight:500">重新生成</button>` : ''}
-    </div>
-    <div id="memoirBody" style="padding:16px">`;
-
-  if (memoirText) {
-    html += `<div class="memoir-content">${formatMemoirText(memoirText)}</div>`;
-  } else {
-    html += `<div style="text-align:center;padding:30px 20px">
-      <div style="font-size:40px;margin-bottom:10px">🤖</div>
-      <div style="font-size:14px;font-weight:500;margin-bottom:6px">讓 AI 幫你寫旅程故事</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:16px">根據你的消費記錄、照片、地點，自動生成一篇充滿溫度的旅遊回憶錄</div>
-      <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm)" onclick="generateMemoir(false)">✨ 開始生成回憶錄</button>
-      ${!state.apiKey?'<div style="font-size:11px;color:var(--danger);margin-top:8px">⚠️ 請先在設定填入 Anthropic API Key</div>':''}
-    </div>`;
-  }
-  html += `</div></div>`;
-
   // 封存 / 解封
   html += `<div class="card" style="margin-top:4px">
     <div style="font-size:13px;font-weight:600;margin-bottom:4px">${isArchived?'📦 旅程已封存':'📦 封存旅程'}</div>
