@@ -1051,8 +1051,9 @@ async function renderMyTrips() {
 
   cont.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:6px 0">載入中...</div>';
 
+  // 第一步：取得此帳號的旅程清單
   const { data: userTrips } = await sb.from('user_trips')
-    .select('trip_id, member_id, role, trips(*)')
+    .select('trip_id, member_id, role')
     .eq('user_id', state.user.id)
     .order('created_at', { ascending: false });
 
@@ -1063,14 +1064,30 @@ async function renderMyTrips() {
     return;
   }
 
-  const active = userTrips.filter(ut => ut.trips && !ut.trips.archived);
-  const archived = userTrips.filter(ut => ut.trips && ut.trips.archived);
+  // 第二步：用 trip_id 查旅程詳細資料
+  const tripIds = userTrips.map(ut => ut.trip_id);
+  const { data: tripsData } = await sb.from('trips').select('*').in('id', tripIds);
+  if (!tripsData || !tripsData.length) {
+    cont.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:10px 0;text-align:center">還沒有旅程，快建立第一個吧！✈️</div>';
+    if (archCont) archCont.innerHTML = '';
+    if (archSection) archSection.style.display = 'none';
+    return;
+  }
 
-  const filtActive = searchVal ? active.filter(ut => ut.trips?.name?.toLowerCase().includes(searchVal)) : active;
-  const filtArchived = searchVal ? archived.filter(ut => ut.trips?.name?.toLowerCase().includes(searchVal)) : archived;
+  // 合併資料
+  const combined = userTrips.map(ut => ({
+    ...ut,
+    trip: tripsData.find(t => t.id === ut.trip_id)
+  })).filter(ut => ut.trip);
+
+  const active = combined.filter(ut => !ut.trip.archived);
+  const archived = combined.filter(ut => ut.trip.archived);
+
+  const filtActive = searchVal ? active.filter(ut => ut.trip.name?.toLowerCase().includes(searchVal)) : active;
+  const filtArchived = searchVal ? archived.filter(ut => ut.trip.name?.toLowerCase().includes(searchVal)) : archived;
 
   const tripCard = (ut, isArchived) => {
-    const t = ut.trips;
+    const t = ut.trip;
     return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${ut.member_id||''}')">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
         <div class="trip-card-name" style="margin-bottom:0">✈️ ${t.name}</div>
