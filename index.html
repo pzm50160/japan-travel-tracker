@@ -531,8 +531,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M1 21v-2a7 7 0 0114 0v2"/><circle cx="17" cy="7" r="4"/><path d="M23 21v-2a5 5 0 00-4-4.9"/></svg>分攤</button>
   <button class="nav-btn" onclick="goPage('stats',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>統計</button>
-  <button class="nav-btn" onclick="goPage('memoir',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>回憶錄</button>
   <button class="nav-btn" onclick="goPage('game',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="14" height="18" rx="2"/><path d="M8 4V2M6 9h6M6 13h4"/><rect x="8" y="8" width="14" height="14" rx="2" fill="var(--surface)" stroke="currentColor"/><path d="M14 12h6M14 16h4"/></svg>牌局</button>
   <button class="nav-btn" onclick="goPage('settings',this)">
@@ -623,12 +621,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 </div>
 
 <!-- MEMOIR PAGE -->
-<div class="page" id="page-memoir">
-  <div id="memoirContent">
-    <!-- rendered by renderMemoir() -->
-  </div>
-</div>
-
 <div class="page" id="page-settings">
   <h2 style="font-size:17px;font-weight:700;margin-bottom:13px">設定</h2>
   <div class="card">
@@ -674,22 +666,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   </div>
   <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <input type="file" id="avatarCamInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarUpload(this.files[0])">
-  <div class="card">
-    <div style="font-size:12px;font-weight:600;margin-bottom:8px">🤖 AI 回憶錄設定</div>
-    <div style="font-size:11px;font-weight:600;margin-bottom:3px">Anthropic API Key</div>
-    <div style="font-size:10px;color:var(--text2);margin-bottom:6px">支援圖片・sk-ant-… （僅存本機）</div>
-    <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." oninput="saveApiKey()" style="margin-bottom:6px">
-    <div style="font-size:10px;color:var(--success);margin-bottom:12px" id="apiStatus"></div>
-    <div style="font-size:11px;font-weight:600;margin-bottom:3px">Google Gemini API Key</div>
-    <div style="font-size:10px;color:var(--text2);margin-bottom:6px">支援圖片・AIza… （僅存本機）</div>
-    <input class="form-input" id="googleApiKeyInput" type="password" placeholder="AIza..." oninput="saveGoogleApiKey()" style="margin-bottom:6px">
-    <div style="font-size:10px;color:var(--success);margin-bottom:12px" id="googleApiStatus"></div>
-    <div style="font-size:11px;font-weight:600;margin-bottom:6px">優先使用</div>
-    <div style="display:flex;gap:8px">
-      <button id="preferAnthropicBtn" onclick="setPreferAI('anthropic')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer">Claude (Anthropic)</button>
-      <button id="preferGoogleBtn" onclick="setPreferAI('google')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer">Gemini (Google)</button>
-    </div>
-  </div>
   <div class="card">
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px" onclick="leaveTrip()">🚪 離開此旅程</button>
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;color:var(--danger);border-color:var(--danger)" onclick="authSignOut()">登出帳號</button>
