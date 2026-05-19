@@ -269,6 +269,15 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .memoir-photo-strip{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:4px}
 .memoir-photo-strip img{width:100px;height:100px;object-fit:cover;border-radius:10px;flex-shrink:0;cursor:pointer}
 .archived-badge{display:inline-flex;align-items:center;gap:5px;background:#ECFDF5;color:var(--success);font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid #A7F3D0}
+/* AUTH SCREEN */
+.auth-screen{position:fixed;inset:0;background:var(--bg);z-index:600;overflow-y:auto;padding:40px 16px;display:none;flex-direction:column;align-items:center;justify-content:center}
+.auth-screen.show{display:flex}
+.auth-card{width:100%;max-width:400px;background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:28px 20px}
+.auth-error{display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:9px 12px;font-size:12px;color:var(--danger);margin-bottom:12px}
+.auth-success{display:none;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;padding:9px 12px;font-size:12px;color:var(--success);margin-bottom:12px}
+/* TRIP SEARCH */
+.trip-search{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:inherit;background:var(--surface);color:var(--text);margin-bottom:12px;outline:none}
+.trip-search:focus{border-color:var(--orange)}
 /* BIG TWO GAME */
 .g-board{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px}
 .g-board-header{padding:11px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
@@ -334,11 +343,65 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   </div>
 </div>
 
+<!-- AUTH SCREEN -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-card">
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:46px;margin-bottom:8px">✈️</div>
+      <div style="font-size:22px;font-weight:700">旅遊記帳</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:4px">登入以永久保存你的旅程記錄</div>
+    </div>
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-success" id="authSuccess"></div>
+    <div class="form-group">
+      <label class="form-label">電子信箱</label>
+      <input class="form-input" id="authEmail" type="email" placeholder="you@email.com" autocomplete="email">
+    </div>
+    <div class="form-group" id="authPasswordGroup">
+      <label class="form-label">密碼</label>
+      <input class="form-input" id="authPassword" type="password" placeholder="至少 6 個字元" autocomplete="current-password" onkeydown="if(event.key==='Enter')authSignIn()">
+    </div>
+    <div id="authLoginView">
+      <button class="btn-save" id="authSignInBtn" onclick="authSignIn()" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:12px">登入</button>
+      <div style="text-align:center;font-size:13px;color:var(--text2);margin-bottom:8px">
+        還沒有帳號？ <span onclick="showAuthSignUp()" style="color:var(--orange);cursor:pointer;font-weight:600">建立帳號</span>
+      </div>
+      <div style="text-align:center;font-size:12px;color:var(--text3)">
+        <span onclick="showAuthForgot()" style="cursor:pointer;text-decoration:underline">忘記密碼？</span>
+      </div>
+    </div>
+    <div id="authSignUpView" style="display:none">
+      <button class="btn-save" id="authSignUpBtn" onclick="authSignUp()" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:12px">建立帳號</button>
+      <div style="text-align:center;font-size:13px;color:var(--text2)">
+        已有帳號？ <span onclick="showAuthLogin()" style="color:var(--orange);cursor:pointer;font-weight:600">登入</span>
+      </div>
+    </div>
+    <div id="authForgotView" style="display:none">
+      <button class="btn-save" id="authForgotBtn" onclick="authResetPassword()" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:12px">寄送重設信件</button>
+      <div style="text-align:center;font-size:13px;color:var(--text2)">
+        <span onclick="showAuthLogin()" style="color:var(--orange);cursor:pointer;font-weight:600">← 返回登入</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- TRIP SELECT SCREEN -->
 <div class="trip-screen" id="tripScreen">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+    <div>
+      <div style="font-size:11px;color:var(--text3)">登入帳號</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text)" id="userEmailDisplay">—</div>
+    </div>
+    <button onclick="authSignOut()" style="font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-family:inherit">登出</button>
+  </div>
   <div class="trip-screen-title">旅遊記帳 ✈️</div>
   <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
+  <input class="trip-search" id="tripSearchInput" placeholder="🔍 搜尋旅程名稱..." oninput="renderMyTrips()">
   <div id="myTripsList"></div>
+  <div id="archivedTripsSection" style="display:none">
+    <div style="font-size:12px;font-weight:500;color:var(--text2);margin:8px 0 8px;display:flex;align-items:center;gap:6px">📦 封存的旅程</div>
+    <div id="archivedTripsList"></div>
+  </div>
   <div class="divider">或</div>
   <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:10px" onclick="showCreateTrip()">＋ 建立新旅程</button>
   <button class="btn-cancel" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm)" onclick="showJoinTrip()">🔗 輸入邀請碼加入旅程</button>
@@ -629,6 +692,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   </div>
   <div class="card">
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px" onclick="leaveTrip()">🚪 離開此旅程</button>
+    <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;color:var(--danger);border-color:var(--danger)" onclick="authSignOut()">登出帳號</button>
   </div>
 </div>
 
@@ -784,6 +848,23 @@ const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
+async function uploadToStorage(blob, folder) {
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`;
+  const { error } = await sb.storage.from('travel-images').upload(path, blob, { contentType: 'image/jpeg' });
+  if (error) throw new Error('圖片上傳失敗：' + error.message);
+  return sb.storage.from('travel-images').getPublicUrl(path).data.publicUrl;
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, data] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)[1];
+  const binary = atob(data);
+  const arr = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const CATS=['餐飲','交通','住宿','購物','門票','藥品','其他'];
 const PAYS=['現金','信用卡','PayPay','Suica','iD'];
@@ -796,6 +877,7 @@ let state = {
   tripId: null, trip: null,
   expenses: [], members: [],
   myMemberId: null,
+  user: null,
   apiKey: '', googleApiKey: '', preferAI: 'anthropic',
   editId: null,
   selectedPayer: null, selectedCat: '餐飲', selectedPay: '現金',
@@ -803,6 +885,7 @@ let state = {
   currency: 'JPY',   // 'JPY' | 'TWD'
   pendingPhotoBase64: null,
   pendingPhotoUrl: null,
+  pendingPhotoFile: null,
 };
 let charts = {trend:null,cat:null,pay:null};
 let recTab = 'date';
@@ -816,21 +899,36 @@ async function init() {
   state.apiKey = localStorage.getItem('jpApiKey') || '';
   state.googleApiKey = localStorage.getItem('jpGoogleApiKey') || '';
   state.preferAI = localStorage.getItem('jpPreferAI') || 'anthropic';
+
+  // Check auth session first
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    hideLoading();
+    showAuthScreen();
+    return;
+  }
+  state.user = session.user;
+
   const savedTripId = localStorage.getItem('jpTripId');
   const savedMemberId = localStorage.getItem('jpMemberId');
 
   if (savedTripId && savedMemberId) {
     setLoading('連接雲端中...');
     try {
-      const { data: trip } = await sb.from('trips').select('*').eq('id', savedTripId).single();
-      if (trip) {
-        state.tripId = savedTripId;
-        state.myMemberId = savedMemberId;
-        state.trip = trip;
-        await loadAll();
-        showApp();
-        subscribeRealtime();
-        return;
+      // Verify this user has access to this trip
+      const { data: ut } = await sb.from('user_trips')
+        .select('*').eq('user_id', state.user.id).eq('trip_id', savedTripId).single();
+      if (ut) {
+        const { data: trip } = await sb.from('trips').select('*').eq('id', savedTripId).single();
+        if (trip) {
+          state.tripId = savedTripId;
+          state.myMemberId = savedMemberId;
+          state.trip = trip;
+          await loadAll();
+          showApp();
+          subscribeRealtime();
+          return;
+        }
       }
     } catch(e) {}
   }
@@ -849,7 +947,6 @@ function showApp() {
   document.getElementById('mainNav').style.display = 'flex';
   document.getElementById('mainFab').style.display = 'flex';
   renderHome();
-  startPolling();
 }
 function showTripScreen() {
   document.getElementById('tripScreen').classList.add('show');
@@ -857,22 +954,166 @@ function showTripScreen() {
   renderEmojiPickers();
 }
 
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function showAuthScreen() {
+  document.getElementById('authScreen').classList.add('show');
+}
+function hideAuthScreen() {
+  document.getElementById('authScreen').classList.remove('show');
+}
+function showAuthLogin() {
+  document.getElementById('authLoginView').style.display = '';
+  document.getElementById('authSignUpView').style.display = 'none';
+  document.getElementById('authForgotView').style.display = 'none';
+  document.getElementById('authPasswordGroup').style.display = '';
+  clearAuthMessages();
+}
+function showAuthSignUp() {
+  document.getElementById('authLoginView').style.display = 'none';
+  document.getElementById('authSignUpView').style.display = '';
+  document.getElementById('authForgotView').style.display = 'none';
+  document.getElementById('authPasswordGroup').style.display = '';
+  clearAuthMessages();
+}
+function showAuthForgot() {
+  document.getElementById('authLoginView').style.display = 'none';
+  document.getElementById('authSignUpView').style.display = 'none';
+  document.getElementById('authForgotView').style.display = '';
+  document.getElementById('authPasswordGroup').style.display = 'none';
+  clearAuthMessages();
+}
+function clearAuthMessages() {
+  const e = document.getElementById('authError');
+  const s = document.getElementById('authSuccess');
+  e.style.display = 'none'; e.textContent = '';
+  s.style.display = 'none'; s.textContent = '';
+}
+function showAuthError(msg) {
+  const e = document.getElementById('authError');
+  e.textContent = msg; e.style.display = 'block';
+  document.getElementById('authSuccess').style.display = 'none';
+}
+function showAuthSuccess(msg) {
+  const s = document.getElementById('authSuccess');
+  s.textContent = msg; s.style.display = 'block';
+  document.getElementById('authError').style.display = 'none';
+}
+
+async function authSignIn() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  if (!email || !password) { showAuthError('請填寫信箱和密碼'); return; }
+  const btn = document.getElementById('authSignInBtn');
+  btn.disabled = true; btn.textContent = '登入中...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = '登入';
+  if (error) { showAuthError('登入失敗：' + error.message); return; }
+  state.user = data.user;
+  hideAuthScreen();
+  showTripScreen();
+}
+
+async function authSignUp() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  if (!email || !password) { showAuthError('請填寫信箱和密碼'); return; }
+  if (password.length < 6) { showAuthError('密碼至少 6 個字元'); return; }
+  const btn = document.getElementById('authSignUpBtn');
+  btn.disabled = true; btn.textContent = '註冊中...';
+  const { data, error } = await sb.auth.signUp({ email, password });
+  btn.disabled = false; btn.textContent = '建立帳號';
+  if (error) { showAuthError('註冊失敗：' + error.message); return; }
+  if (data.user && !data.session) {
+    showAuthSuccess('已寄出確認信，請至信箱點擊連結後再登入 📧');
+    showAuthLogin();
+    return;
+  }
+  state.user = data.user;
+  hideAuthScreen();
+  showTripScreen();
+}
+
+async function authResetPassword() {
+  const email = document.getElementById('authEmail').value.trim();
+  if (!email) { showAuthError('請填寫信箱'); return; }
+  const btn = document.getElementById('authForgotBtn');
+  btn.disabled = true; btn.textContent = '寄送中...';
+  const { error } = await sb.auth.resetPasswordForEmail(email);
+  btn.disabled = false; btn.textContent = '寄送重設信件';
+  if (error) { showAuthError('寄送失敗：' + error.message); return; }
+  showAuthSuccess('重設密碼信已寄出，請檢查信箱 📧');
+}
+
+async function authSignOut() {
+  if (!confirm('確定要登出帳號嗎？')) return;
+  await sb.auth.signOut();
+  state.user = null;
+  localStorage.removeItem('jpTripId');
+  localStorage.removeItem('jpMemberId');
+  if (realtimeSub) sb.removeChannel(realtimeSub);
+  location.reload();
+}
+
 // ─── TRIP MANAGEMENT ──────────────────────────────────────────────────────────
 async function renderMyTrips() {
-  const saved = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+  if (!state.user) return;
+
+  // Show user email in header
+  const emailEl = document.getElementById('userEmailDisplay');
+  if (emailEl) emailEl.textContent = state.user.email;
+
+  const searchVal = (document.getElementById('tripSearchInput')?.value || '').trim().toLowerCase();
   const cont = document.getElementById('myTripsList');
-  if (!saved.length) { cont.innerHTML = ''; return; }
-  const ids = saved.map(t => t.id);
-  const { data: trips } = await sb.from('trips').select('*').in('id', ids);
-  if (!trips || !trips.length) { cont.innerHTML = ''; return; }
-  cont.innerHTML = '<div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">我的旅程</div>' +
-    trips.map(t => {
-      const myInfo = saved.find(s => s.id === t.id);
-      return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${myInfo?.memberId||''}')">
-        <div class="trip-card-name">✈️ ${t.name}</div>
-        <div class="trip-card-sub">${t.start_date} ～ ${t.end_date}</div>
-      </div>`;
-    }).join('');
+  const archCont = document.getElementById('archivedTripsList');
+  const archSection = document.getElementById('archivedTripsSection');
+
+  cont.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:6px 0">載入中...</div>';
+
+  const { data: userTrips } = await sb.from('user_trips')
+    .select('trip_id, member_id, role, trips(*)')
+    .eq('user_id', state.user.id)
+    .order('created_at', { ascending: false });
+
+  if (!userTrips || !userTrips.length) {
+    cont.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:10px 0;text-align:center">還沒有旅程，快建立第一個吧！✈️</div>';
+    if (archCont) archCont.innerHTML = '';
+    if (archSection) archSection.style.display = 'none';
+    return;
+  }
+
+  const active = userTrips.filter(ut => ut.trips && !ut.trips.archived);
+  const archived = userTrips.filter(ut => ut.trips && ut.trips.archived);
+
+  const filtActive = searchVal ? active.filter(ut => ut.trips?.name?.toLowerCase().includes(searchVal)) : active;
+  const filtArchived = searchVal ? archived.filter(ut => ut.trips?.name?.toLowerCase().includes(searchVal)) : archived;
+
+  const tripCard = (ut, isArchived) => {
+    const t = ut.trips;
+    return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${ut.member_id||''}')">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+        <div class="trip-card-name" style="margin-bottom:0">✈️ ${t.name}</div>
+        ${isArchived ? '<span class="archived-badge" style="font-size:10px;padding:2px 7px">📦 封存</span>' : ''}
+      </div>
+      <div class="trip-card-sub">${t.start_date} ～ ${t.end_date}</div>
+    </div>`;
+  };
+
+  if (filtActive.length) {
+    cont.innerHTML = '<div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">我的旅程</div>' +
+      filtActive.map(ut => tripCard(ut, false)).join('');
+  } else {
+    cont.innerHTML = searchVal
+      ? '<div style="font-size:12px;color:var(--text2);padding:6px 0;text-align:center">沒有符合的進行中旅程</div>'
+      : '';
+  }
+
+  if (filtArchived.length) {
+    archCont.innerHTML = filtArchived.map(ut => tripCard(ut, true)).join('');
+    archSection.style.display = 'block';
+  } else {
+    if (archCont) archCont.innerHTML = '';
+    if (archSection) archSection.style.display = (archived.length && !searchVal) ? 'block' : 'none';
+  }
 }
 
 async function selectTrip(tripId, memberId) {
@@ -1171,14 +1412,14 @@ async function createTrip() {
     await sb.from('members').insert({
       id: memberId, name: memberName,
       emoji: createSelEmoji,
-      avatar_url: createAvatarDataUrl || null,
+      avatar_url: createAvatarDataUrl ? await uploadToStorage(dataUrlToBlob(createAvatarDataUrl), 'avatars') : null,
       trip_id: tripId,
     });
-    const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-    myTrips.push({ id: tripId, memberId });
-    localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
     localStorage.setItem('jpTripId', tripId);
     localStorage.setItem('jpMemberId', memberId);
+    if (state.user) {
+      await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: tripId, member_id: memberId, role: 'owner' });
+    }
     state.tripId = tripId; state.myMemberId = memberId; state.trip = trip;
     await loadAll();
     showApp();
@@ -1232,11 +1473,11 @@ async function lookupTrip() {
 async function joinAsExisting(memberId, memberName) {
   if (!pendingJoinTrip) return;
   if (!confirm(`確定你是「${memberName}」嗎？`)) return;
-  const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-  myTrips.push({ id: pendingJoinTrip.id, memberId });
-  localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
   localStorage.setItem('jpTripId', pendingJoinTrip.id);
   localStorage.setItem('jpMemberId', memberId);
+  if (state.user) {
+    await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: pendingJoinTrip.id, member_id: memberId });
+  }
   state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
   await loadAll();
   showApp();
@@ -1254,14 +1495,14 @@ async function joinTrip() {
     await sb.from('members').insert({
       id: memberId, name: memberName,
       emoji: joinSelEmoji,
-      avatar_url: joinAvatarDataUrl || null,
+      avatar_url: joinAvatarDataUrl ? await uploadToStorage(dataUrlToBlob(joinAvatarDataUrl), 'avatars') : null,
       trip_id: pendingJoinTrip.id,
     });
-    const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-    myTrips.push({ id: pendingJoinTrip.id, memberId });
-    localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
     localStorage.setItem('jpTripId', pendingJoinTrip.id);
     localStorage.setItem('jpMemberId', memberId);
+    if (state.user) {
+      await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: pendingJoinTrip.id, member_id: memberId });
+    }
     state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
     await loadAll();
     showApp();
@@ -1270,12 +1511,13 @@ async function joinTrip() {
   btn.disabled = false; btn.textContent = '加入旅程 →';
 }
 
-function leaveTrip() {
+async function leaveTrip() {
   if (!confirm('確定要離開此旅程？')) return;
-  const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]').filter(t => t.id !== state.tripId);
-  localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
   localStorage.removeItem('jpTripId');
   localStorage.removeItem('jpMemberId');
+  if (state.user) {
+    await sb.from('user_trips').delete().eq('user_id', state.user.id).eq('trip_id', state.tripId);
+  }
   if (realtimeSub) sb.removeChannel(realtimeSub);
   location.reload();
 }
@@ -1503,13 +1745,15 @@ function handleCoverPhoto(file) {
       canvas.width = Math.round(w * ratio);
       canvas.height = Math.round(h * ratio);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
-      const covers = [...(state.trip?.cover_photos || DEFAULT_COVERS)];
-      covers[0] = dataUrl;
-      await sb.from('trips').update({ cover_photos: covers }).eq('id', state.tripId);
-      state.trip.cover_photos = covers;
-      renderHeroBanner();
-      showToast('封面已更新！');
+      canvas.toBlob(async (blob) => {
+        const url = await uploadToStorage(blob, 'covers');
+        const covers = [...(state.trip?.cover_photos || DEFAULT_COVERS)];
+        covers[0] = url;
+        await sb.from('trips').update({ cover_photos: covers }).eq('id', state.tripId);
+        state.trip.cover_photos = covers;
+        renderHeroBanner();
+        showToast('封面已更新！');
+      }, 'image/jpeg', 0.88);
     };
     img.src = e.target.result;
   };
@@ -1793,12 +2037,10 @@ async function addMember() {
 
 async function setAsMe(memberId) {
   if (!confirm('確定要切換成這位成員嗎？你之後的記帳將以此身份進行。')) return;
-  const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-  const idx = myTrips.findIndex(t => t.id === state.tripId);
-  if (idx >= 0) myTrips[idx].memberId = memberId;
-  else myTrips.push({ id: state.tripId, memberId });
-  localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
   localStorage.setItem('jpMemberId', memberId);
+  if (state.user) {
+    await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: state.tripId, member_id: memberId });
+  }
   state.myMemberId = memberId;
   renderSettings();
   showToast('身份已切換');
@@ -1995,7 +2237,10 @@ async function saveExpense() {
   const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='儲存中...';
   setSyncDot('syncing');
   try {
-    const photoUrl = state.pendingPhotoBase64 || state.pendingPhotoUrl || null;
+    let photoUrl = state.pendingPhotoUrl || null;
+    if (state.pendingPhotoBase64) {
+      photoUrl = await uploadToStorage(dataUrlToBlob(state.pendingPhotoBase64), 'receipts');
+    }
     const exp = {
       name,
       amount: rawAmt,          // 原始金額（日圓或台幣）
@@ -2164,6 +2409,7 @@ async function fixPhotoOrientation(dataUrl, file) {
 }
 function handlePhotoSelect(file) {
   if (!file) return;
+  state.pendingPhotoFile = file;
   const reader = new FileReader();
   reader.onload = async e => {
     const corrected = await fixPhotoOrientation(e.target.result, file);
@@ -2175,6 +2421,7 @@ function handlePhotoSelect(file) {
 }
 function clearPhoto() {
   state.pendingPhotoBase64 = null;
+  state.pendingPhotoFile = null;
   state.pendingPhotoUrl = null;
   document.getElementById('photoPreviewWrap').style.display = 'none';
   document.getElementById('photoPreview').src = '';
@@ -2191,9 +2438,10 @@ async function handleAvatarUpload(file) {
   if (!file || !state.myMemberId) return;
   openCropperWith(file, async dataUrl => {
     showToast('上傳中...');
-    await sb.from('members').update({ avatar_url: dataUrl }).eq('id', state.myMemberId);
+    const url = await uploadToStorage(dataUrlToBlob(dataUrl), 'avatars');
+    await sb.from('members').update({ avatar_url: url }).eq('id', state.myMemberId);
     const m = state.members.find(x => x.id === state.myMemberId);
-    if (m) m.avatar_url = dataUrl;
+    if (m) m.avatar_url = url;
     renderSettings();
     showToast('頭像已更新！');
   });
@@ -2600,7 +2848,19 @@ ${notes ? `\n【旅途備忘錄】\n${notes}` : ''}${gameSection}
       <button onclick="generateMemoir(true)" style="width:100%;margin-top:10px;padding:9px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;color:var(--text2)">🔄 重新生成</button>`;
     showToast('回憶錄已生成！');
   } catch(e) {
-    body.innerHTML = `<div style="padding:16px;color:var(--danger);font-size:12px">❌ 生成失敗：${e.message}</div>
+    const isQuota = e.message && (e.message.includes('quota') || e.message.includes('RESOURCE_EXHAUSTED') || e.message.includes('exceeded your current quota'));
+    // Auto-fallback: if Gemini quota exceeded and Claude key available, retry with Claude
+    if (isQuota && useGoogle && state.apiKey) {
+      showToast('Gemini 配額已用盡，自動切換 Claude 重試...');
+      const prevPref = state.preferAI;
+      state.preferAI = 'claude';
+      try { await generateMemoir(regenerate); } finally { state.preferAI = prevPref; }
+      return;
+    }
+    const hint = isQuota
+      ? '<div style="margin-top:8px;font-size:11px;color:var(--text2)">Gemini 免費配額已耗盡，請稍後再試，或在設定中改用 Claude API Key。</div>'
+      : '';
+    body.innerHTML = `<div style="padding:16px;color:var(--danger);font-size:12px">❌ 生成失敗：${e.message}${hint}</div>
       <button onclick="generateMemoir(false)" style="margin:0 16px 16px;padding:9px 20px;background:var(--orange);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;cursor:pointer">重試</button>`;
   }
 }
