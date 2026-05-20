@@ -395,22 +395,29 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
         <span onclick="showAuthLogin()" style="color:var(--orange);cursor:pointer;font-weight:600">← 返回登入</span>
       </div>
     </div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);text-align:center">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">不想建立帳號？</div>
+      <button onclick="enterGuestMode()" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);font-size:13px;color:var(--text2);cursor:pointer;font-family:inherit">訪客模式（僅限此裝置）</button>
+    </div>
   </div>
 </div>
 
 <!-- TRIP SELECT SCREEN -->
 <div class="trip-screen" id="tripScreen">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px" id="tripScreenHeader">
     <div>
-      <div style="font-size:11px;color:var(--text3)">登入帳號</div>
+      <div style="font-size:11px;color:var(--text3)" id="tripScreenHeaderLabel">登入帳號</div>
       <div style="font-size:13px;font-weight:600;color:var(--text)" id="userEmailDisplay">—</div>
     </div>
-    <button onclick="authSignOut()" style="font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-family:inherit">登出</button>
+    <button id="tripScreenHeaderBtn" onclick="authSignOut()" style="font-size:11px;color:var(--text2);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-family:inherit">登出</button>
+  </div>
+  <div id="guestBanner" style="display:none;background:#FEF3E2;border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;color:#B45309">
+    📱 訪客模式：旅程只存在這台裝置。<span onclick="showAuthScreen()" style="font-weight:600;cursor:pointer;text-decoration:underline">登入帳號</span>可永久保存。
   </div>
   <div class="trip-screen-title">旅遊記帳 ✈️</div>
   <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
   <input class="trip-search" id="tripSearchInput" placeholder="🔍 搜尋旅程名稱..." oninput="renderMyTrips()">
-  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+  <div id="tripDateFilterRow" style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
     <span style="font-size:11px;color:var(--text3);white-space:nowrap">日期篩選</span>
     <input type="date" class="form-input" id="tripSearchFrom" oninput="renderMyTrips()" style="flex:1;font-size:12px;padding:7px 10px">
     <span style="font-size:11px;color:var(--text3)">～</span>
@@ -992,6 +999,13 @@ function showTripScreen() {
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 function showAuthScreen() {
   document.getElementById('authScreen').classList.add('show');
+  document.getElementById('tripScreen').classList.remove('show');
+}
+
+function enterGuestMode() {
+  state.user = null;
+  hideAuthScreen();
+  showTripScreen();
 }
 function hideAuthScreen() {
   document.getElementById('authScreen').classList.remove('show');
@@ -1091,11 +1105,44 @@ async function authSignOut() {
 
 // ─── TRIP MANAGEMENT ──────────────────────────────────────────────────────────
 async function renderMyTrips() {
-  if (!state.user) return;
-
-  // Show user email in header
   const emailEl = document.getElementById('userEmailDisplay');
+  const labelEl = document.getElementById('tripScreenHeaderLabel');
+  const btnEl = document.getElementById('tripScreenHeaderBtn');
+  const guestBanner = document.getElementById('guestBanner');
+  const archSection = document.getElementById('archivedTripsSection');
+  const searchRow = document.getElementById('tripDateFilterRow');
+
+  if (!state.user) {
+    // 訪客模式
+    if (emailEl) emailEl.textContent = '訪客';
+    if (labelEl) labelEl.textContent = '使用模式';
+    if (btnEl) { btnEl.textContent = '登入帳號'; btnEl.onclick = showAuthScreen; }
+    if (guestBanner) guestBanner.style.display = 'block';
+    if (archSection) archSection.style.display = 'none';
+    if (searchRow) searchRow.style.display = 'none';
+    // 從 localStorage 讀取
+    const cont = document.getElementById('myTripsList');
+    const saved = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+    if (!saved.length) { cont.innerHTML = '<div style="font-size:12px;color:var(--text2);padding:10px 0;text-align:center">還沒有旅程，快建立第一個吧！✈️</div>'; return; }
+    const { data: trips } = await sb.from('trips').select('*').in('id', saved.map(t => t.id));
+    if (!trips || !trips.length) { cont.innerHTML = ''; return; }
+    cont.innerHTML = '<div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">我的旅程</div>' +
+      trips.map(t => {
+        const info = saved.find(s => s.id === t.id);
+        return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${info?.memberId||''}')">
+          <div class="trip-card-name">✈️ ${t.name}</div>
+          <div class="trip-card-sub">${t.start_date} ～ ${t.end_date}</div>
+        </div>`;
+      }).join('');
+    return;
+  }
+
+  // 登入模式
   if (emailEl) emailEl.textContent = state.user.email;
+  if (labelEl) labelEl.textContent = '登入帳號';
+  if (btnEl) { btnEl.textContent = '登出'; btnEl.onclick = authSignOut; }
+  if (guestBanner) guestBanner.style.display = 'none';
+  if (searchRow) searchRow.style.display = 'flex';
 
   const searchVal = (document.getElementById('tripSearchInput')?.value || '').trim().toLowerCase();
   const cont = document.getElementById('myTripsList');
@@ -1480,6 +1527,10 @@ async function createTrip() {
     localStorage.setItem('jpMemberId', memberId);
     if (state.user) {
       await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: tripId, member_id: memberId, role: 'owner' });
+    } else {
+      const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+      myTrips.push({ id: tripId, memberId });
+      localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
     }
     state.tripId = tripId; state.myMemberId = memberId; state.trip = trip;
     await loadAll();
@@ -1538,6 +1589,10 @@ async function joinAsExisting(memberId, memberName) {
   localStorage.setItem('jpMemberId', memberId);
   if (state.user) {
     await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: pendingJoinTrip.id, member_id: memberId });
+  } else {
+    const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+    if (!myTrips.find(t => t.id === pendingJoinTrip.id)) myTrips.push({ id: pendingJoinTrip.id, memberId });
+    localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
   }
   state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
   await loadAll();
@@ -1563,6 +1618,10 @@ async function joinTrip() {
     localStorage.setItem('jpMemberId', memberId);
     if (state.user) {
       await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: pendingJoinTrip.id, member_id: memberId });
+    } else {
+      const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
+      if (!myTrips.find(t => t.id === pendingJoinTrip.id)) myTrips.push({ id: pendingJoinTrip.id, memberId });
+      localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
     }
     state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
     await loadAll();
