@@ -2429,15 +2429,16 @@ function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();
 let pendingReceipt=null;
 function showReceiptResult(data){
   pendingReceipt=data;
-  document.getElementById('scanResult').innerHTML='<div class="result-card"><div class="result-header"><div><div class="store-name">'+data.store_name_zh+'</div><div class="store-original">'+data.store_name_ja+'</div></div><div class="result-date">'+data.date+'</div></div><div class="items-header"><span class="items-title">購買明細</span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>'+data.items.map((it,i)=>'<div class="result-item"><div class="item-num">'+(i+1)+'</div><div class="item-info"><div class="item-name">'+it.name_zh+'</div><div class="item-sub">'+it.name_ja+' · '+(it.quantity||1)+'x ¥'+it.price+'</div></div><div class="item-price">¥'+((it.quantity||1)*it.price).toLocaleString()+'</div></div>').join('')+'<button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存 ('+data.items.length+' 筆)</button><div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div></div>';
+  document.getElementById('scanResult').innerHTML='<div class="result-card"><div class="result-header"><div><div class="store-name">'+data.store_name_zh+'</div><div class="store-original">'+data.store_name_ja+'</div></div><div class="result-date">'+data.date+'</div></div><div class="items-header"><span class="items-title">購買明細</span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>'+data.items.map((it,i)=>'<div class="result-item"><div class="item-num">'+(i+1)+'</div><div class="item-info"><div class="item-name">'+it.name_zh+'</div><div class="item-sub">'+it.name_ja+' · '+(it.quantity||1)+'x ¥'+it.price+'</div></div><div class="item-price">¥'+((it.quantity||1)*it.price).toLocaleString()+'</div></div>').join('')+'<button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（整張收據合計 ¥'+(data.total||data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0)).toLocaleString()+'）</button><div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div></div>';
 }
 function addItemToReceipt(){if(!pendingReceipt)return;const name=prompt('品項名稱：');if(!name)return;const price=parseInt(prompt('金額（日圓）：')||0);if(!price)return;pendingReceipt.items.push({name_zh:name,name_ja:name,price,quantity:1,tax_rate:10});showReceiptResult(pendingReceipt);}
 async function saveReceiptExpenses(){
   if(!pendingReceipt||!pendingReceipt.items.length)return;
   const payerId=state.myMemberId||state.members[0]?.id;
   const defPart=state.members.reduce((a,m)=>({...a,[m.id]:true}),{});
-  const inserts=pendingReceipt.items.map(it=>({id:'exp_'+Date.now()+Math.random(),name:it.name_zh,amount:(it.quantity||1)*it.price,date:pendingReceipt.date,cat:'購物',pay:'現金',store:pendingReceipt.store_name_zh,payer_id:payerId,split_mode:'equal',participants:{...defPart},trip_id:state.tripId}));
-  await sb.from('expenses').insert(inserts);
+  const total=pendingReceipt.total||pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  const single={id:'exp_'+Date.now(),name:pendingReceipt.store_name_zh||(pendingReceipt.items[0]?.name_zh||'收據'),amount:total,date:pendingReceipt.date,cat:'購物',pay:'現金',store:pendingReceipt.store_name_zh,payer_id:payerId,split_mode:'equal',participants:{...defPart},trip_id:state.tripId};
+  await sb.from('expenses').insert(single);
   await loadAll();
   pendingReceipt=null;
   document.getElementById('scanArea').innerHTML='<div class="scan-icon">📷</div><div class="scan-title">點擊上傳收據</div><div class="scan-sub">支援 JPG、PNG</div>';
