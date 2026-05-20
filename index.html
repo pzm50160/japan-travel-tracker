@@ -725,6 +725,18 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <input type="file" id="avatarCamInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:6px">🤖 AI 收據掃描</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">掃描頁需要 Anthropic API Key 才能辨識收據</div>
+    <div class="form-group" style="margin-bottom:0">
+      <label class="form-label">Anthropic API Key</label>
+      <div style="display:flex;gap:8px">
+        <input class="form-input" id="apiKeyInput" type="password" placeholder="sk-ant-..." style="flex:1;font-size:12px" onchange="saveApiKey()">
+        <button class="btn-save" style="padding:9px 12px;font-size:12px;flex-shrink:0" onclick="saveApiKey()">儲存</button>
+      </div>
+      <div id="apiStatus" style="font-size:11px;color:var(--success);margin-top:4px"></div>
+    </div>
+  </div>
+  <div class="card">
     <button class="btn-save" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px;background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="switchTrip()">🔀 切換旅程</button>
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px;color:var(--danger);border-color:var(--danger)" onclick="leaveTrip()">🚪 從帳號移除此旅程</button>
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;color:var(--text2)" onclick="authSignOut()">登出帳號</button>
@@ -2098,6 +2110,8 @@ function renderSettings() {
   document.getElementById('settingBudget').value = t.budget;
   document.getElementById('settingRate').value = t.rate;
   document.getElementById('inviteCodeDisplay').textContent = t.invite_code || '------';
+  const akEl = document.getElementById('apiKeyInput');
+  if (akEl) { akEl.value = state.apiKey || ''; document.getElementById('apiStatus').textContent = state.apiKey ? '✓ 已儲存' : ''; }
   document.getElementById('memberCount').textContent = state.members.length;
   document.getElementById('memberList').innerHTML = state.members.map(m => {
     const isMe = m.id === state.myMemberId;
@@ -2181,6 +2195,12 @@ async function removeMember(memberId, memberName) {
   showToast(`已移除 ${memberName}`);
 }
 
+function saveApiKey() {
+  state.apiKey = document.getElementById('apiKeyInput').value.trim();
+  localStorage.setItem('jpApiKey', state.apiKey);
+  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ 已儲存' : '';
+  showToast(state.apiKey ? 'API Key 已儲存' : 'API Key 已清除');
+}
 function copyInviteCode() { navigator.clipboard.writeText(state.trip?.invite_code || '').then(()=>showToast('邀請碼已複製！')); }
 
 // ─── ADD/EDIT MODAL ───────────────────────────────────────────────────────────
