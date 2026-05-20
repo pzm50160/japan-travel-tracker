@@ -2419,8 +2419,8 @@ async function handleFile(file){
   result.innerHTML='<div class="loading-bar"><div class="loading-text"><span class="btn-spinner"></span>AI 正在辨識收據...</div></div>';
   if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
   try{
-    const b64=await toBase64(file);const mtype=file.type||'image/jpeg';
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:'你是日本收據辨識助理。分析收據圖片，只回傳JSON不要其他文字：{"store_name_zh":"店名繁中","store_name_ja":"日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文","price":數字,"tax_rate":8或10,"quantity":數字}],"total":總金額}'}]}]})});
+    const b64=await toBase64(file);const mtype=(file.type&&file.type!=='image/heic'&&file.type!=='image/heif')?file.type:'image/jpeg';
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:'你是日本收據辨識助理。分析收據圖片，只回傳JSON不要其他文字：{"store_name_zh":"店名繁中","store_name_ja":"日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文","price":數字,"tax_rate":8或10,"quantity":數字}],"total":總金額}'}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
@@ -2944,7 +2944,7 @@ ${notes ? `\n【旅途備忘錄】\n${notes}` : ''}${gameSection}
       // Anthropic Claude
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01' },
+        headers: { 'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:3000, messages:[{role:'user',content:messageContent}] })
       });
       const data = await resp.json();
