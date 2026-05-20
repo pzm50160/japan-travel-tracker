@@ -2244,7 +2244,7 @@ function openEditModal(id) {
   state.selectedCat = e.cat; state.selectedPay = e.pay;
   state.splitMode = e.split_mode || 'equal';
   state.participants = {...(e.participants||{})};
-  state.lockedShares = {};
+  state.lockedShares = (e.split_mode === 'custom' && e.participants) ? {...e.participants} : {};
   state.currency = e.currency || 'JPY';
   state.pendingPhotoBase64 = null;
   state.pendingPhotoUrl = e.photo_url || null;
