@@ -856,7 +856,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <div class="modal">
     <div class="modal-title">➕ 新增玩家</div>
     <div id="gameTripMemberList"></div>
-    <div class="divider" style="margin:12px 0">或自訂玩家</div>
+    <button id="gameAddSelectedBtn" onclick="confirmSelectedGameMembers()" class="btn-save" style="display:none;width:100%;padding:11px;margin-bottom:12px;border-radius:var(--radius-sm)">✓ 新增所選成員</button>
+    <div class="divider" style="margin:12px 0">或自訂玩家名稱</div>
     <div style="display:flex;gap:8px">
       <input class="form-input" id="gamePlayerName" placeholder="輸入名稱" maxlength="10" style="flex:1" onkeydown="if(event.key==='Enter')confirmAddGamePlayer()">
       <button class="btn-save" style="padding:9px 14px;flex-shrink:0" onclick="confirmAddGamePlayer()">新增</button>
@@ -3786,37 +3787,65 @@ function renderGameRoundList() {
     }).join('');
 }
 
+let selectedGameMemberIds = new Set();
+
 function openAddGamePlayer() {
+  selectedGameMemberIds = new Set();
   document.getElementById('gamePlayerName').value = '';
-  const added = new Set(activePlayers().map(p=>p.ref_id||p.id));
-  const available = (state.members||[]).filter(m => !added.has(m.id));
-  document.getElementById('gameTripMemberList').innerHTML = available.length
-    ? `<div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:500">旅程成員</div>
-       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
-         ${available.map(m=>`<div onclick="addGamePlayerFromMember('${m.id}')"
-           style="display:flex;align-items:center;gap:7px;background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:6px 12px 6px 6px;cursor:pointer;transition:border-color .15s"
-           onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
-           <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface)">
-             ${m.avatar_url?`<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover">`:m.emoji}
-           </div>
-           <span style="font-size:12px;font-weight:500">${m.name}</span>
-         </div>`).join('')}
-       </div>`
-    : `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">（所有旅程成員已加入）</div>`;
+  document.getElementById('gameAddSelectedBtn').style.display = 'none';
+  renderGameMemberChips();
   document.getElementById('gamePlayerModal').classList.add('open');
   setTimeout(()=>document.getElementById('gamePlayerName').focus(), 200);
 }
 
-async function addGamePlayerFromMember(memberId) {
-  const m = (state.members||[]).find(x=>x.id===memberId);
-  if (!m) return;
+function renderGameMemberChips() {
+  const added = new Set(activePlayers().map(p=>p.ref_id||p.id));
+  const available = (state.members||[]).filter(m => !added.has(m.id));
+  document.getElementById('gameTripMemberList').innerHTML = available.length
+    ? `<div style="font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:500">旅程成員（可多選）</div>
+       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+         ${available.map(m => {
+           const sel = selectedGameMemberIds.has(m.id);
+           return `<div id="gchip_${m.id}" onclick="toggleGameMember('${m.id}')"
+             style="display:flex;align-items:center;gap:7px;border-radius:20px;padding:6px 12px 6px 6px;cursor:pointer;transition:all .15s;
+               background:${sel?'var(--orange-light)':'var(--bg)'};border:1.5px solid ${sel?'var(--orange)':'var(--border)'}">
+             <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface)">
+               ${m.avatar_url?`<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover">`:m.emoji}
+             </div>
+             <span style="font-size:12px;font-weight:${sel?'700':'500'};color:${sel?'var(--orange)':'var(--text)'}">${sel?'✓ ':''} ${m.name}</span>
+           </div>`;
+         }).join('')}
+       </div>`
+    : `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">（所有旅程成員已加入）</div>`;
+}
+
+function toggleGameMember(memberId) {
+  if (selectedGameMemberIds.has(memberId)) {
+    selectedGameMemberIds.delete(memberId);
+  } else {
+    selectedGameMemberIds.add(memberId);
+  }
+  const btn = document.getElementById('gameAddSelectedBtn');
+  btn.style.display = selectedGameMemberIds.size ? 'block' : 'none';
+  btn.textContent = `✓ 新增所選成員（${selectedGameMemberIds.size} 人）`;
+  renderGameMemberChips();
+}
+
+async function confirmSelectedGameMembers() {
+  if (!selectedGameMemberIds.size) return;
   const sess = activeSession();
-  if (sess.players.find(p=>p.ref_id===memberId)) { showToast('已加入'); return; }
-  sess.players.push({ id:'g'+Date.now(), ref_id:m.id, name:m.name, avatar_url:m.avatar_url||null, emoji:m.emoji });
+  let added = 0;
+  for (const memberId of selectedGameMemberIds) {
+    const m = (state.members||[]).find(x=>x.id===memberId);
+    if (!m || sess.players.find(p=>p.ref_id===memberId)) continue;
+    sess.players.push({ id:'g'+Date.now()+'_'+added, ref_id:m.id, name:m.name, avatar_url:m.avatar_url||null, emoji:m.emoji });
+    added++;
+  }
+  if (!added) { showToast('已全部加入'); return; }
   await saveGData();
   document.getElementById('gamePlayerModal').classList.remove('open');
   renderGameLeaderboard(); renderGameStats(); renderGameRoundList();
-  showToast(m.name+' 已加入！');
+  showToast(`已新增 ${added} 位玩家！`);
 }
 
 async function confirmAddGamePlayer() {
