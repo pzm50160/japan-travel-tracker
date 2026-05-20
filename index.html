@@ -1014,7 +1014,7 @@ function showApp() {
   hideLoading();
   document.getElementById('tripScreen').classList.remove('show');
   document.getElementById('mainNav').style.display = 'flex';
-  document.getElementById('mainFab').style.display = 'flex';
+  document.getElementById('mainFab').style.display = state.trip?.archived ? 'none' : 'flex';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-home').classList.add('active');
@@ -2209,6 +2209,7 @@ function copyInviteCode() { navigator.clipboard.writeText(state.trip?.invite_cod
 
 // ─── ADD/EDIT MODAL ───────────────────────────────────────────────────────────
 function openAddModal() {
+  if (state.trip?.archived) { showToast('封存的旅程無法新增花費'); return; }
   state.editId = null;
   state.selectedPayer = state.myMemberId || state.members[0]?.id;
   state.selectedCat='餐飲'; state.selectedPay='現金'; state.splitMode='equal';
@@ -2235,6 +2236,7 @@ function openAddModal() {
   document.getElementById('addModal').classList.add('open');
 }
 function openEditModal(id) {
+  if (state.trip?.archived) { showToast('封存的旅程無法編輯花費'); return; }
   const e = state.expenses.find(x=>x.id===id); if(!e)return;
   const isOwner = !e.created_by || e.created_by === state.myMemberId;
   state.editId = id;
