@@ -4151,10 +4151,10 @@ function renderPackList() {
         return `<div class="pack-item" style="cursor:default">
           <span class="pack-item-emoji">${it.emoji}</span>
           <span class="pack-item-name">${it.name}</span>
-          <button onclick="${isCustom ? `removeCustomPackItem(${JSON.stringify(it.name)})` : `hidePackItem(${JSON.stringify(it.name)})`}" style="background:none;border:none;font-size:18px;color:var(--danger);cursor:pointer;padding:0 4px">✕</button>
+          <button onclick="${isCustom ? `removeCustomPackItem(${JSON.stringify(it.name).replace(/"/g,"'")})` : `hidePackItem(${JSON.stringify(it.name).replace(/"/g,"'")})`}" style="background:none;border:none;font-size:18px;color:var(--danger);cursor:pointer;padding:0 4px">✕</button>
         </div>`;
       }
-      return `<div class="pack-item${isChecked?' checked':''}" onclick="togglePackItem(${JSON.stringify(it.name)})">
+      return `<div class="pack-item${isChecked?' checked':''}" onclick="togglePackItem(${JSON.stringify(it.name).replace(/"/g,"'")})">
         <span class="pack-item-emoji">${it.emoji}</span>
         <span class="pack-item-name">${it.name}</span>
         <span class="pack-check">${isChecked ? '✓' : ''}</span>
