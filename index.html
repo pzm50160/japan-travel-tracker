@@ -2097,11 +2097,6 @@ function renderSettings() {
   document.getElementById('settingBudget').value = t.budget;
   document.getElementById('settingRate').value = t.rate;
   document.getElementById('inviteCodeDisplay').textContent = t.invite_code || '------';
-  document.getElementById('apiKeyInput').value = state.apiKey;
-  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ 已儲存' : '';
-  document.getElementById('googleApiKeyInput').value = state.googleApiKey;
-  document.getElementById('googleApiStatus').textContent = state.googleApiKey ? '✓ 已儲存' : '';
-  setPreferAI(state.preferAI);
   document.getElementById('memberCount').textContent = state.members.length;
   document.getElementById('memberList').innerHTML = state.members.map(m => {
     const isMe = m.id === state.myMemberId;
@@ -2185,22 +2180,6 @@ async function removeMember(memberId, memberName) {
   showToast(`已移除 ${memberName}`);
 }
 
-function saveApiKey() {
-  state.apiKey = document.getElementById('apiKeyInput').value;
-  localStorage.setItem('jpApiKey', state.apiKey);
-  document.getElementById('apiStatus').textContent = state.apiKey ? '✓ 已儲存' : '';
-}
-function saveGoogleApiKey() {
-  state.googleApiKey = document.getElementById('googleApiKeyInput').value;
-  localStorage.setItem('jpGoogleApiKey', state.googleApiKey);
-  document.getElementById('googleApiStatus').textContent = state.googleApiKey ? '✓ 已儲存' : '';
-}
-function setPreferAI(ai) {
-  state.preferAI = ai;
-  localStorage.setItem('jpPreferAI', ai);
-  document.getElementById('preferAnthropicBtn').style.cssText = `flex:1;padding:8px;border-radius:8px;border:1px solid ${ai==='anthropic'?'var(--orange)':'var(--border)'};background:${ai==='anthropic'?'var(--orange-light)':'transparent'};font-size:12px;cursor:pointer;font-weight:${ai==='anthropic'?'600':'400'}`;
-  document.getElementById('preferGoogleBtn').style.cssText = `flex:1;padding:8px;border-radius:8px;border:1px solid ${ai==='google'?'var(--orange)':'var(--border)'};background:${ai==='google'?'var(--orange-light)':'transparent'};font-size:12px;cursor:pointer;font-weight:${ai==='google'?'600':'400'}`;
-}
 function copyInviteCode() { navigator.clipboard.writeText(state.trip?.invite_code || '').then(()=>showToast('邀請碼已複製！')); }
 
 // ─── ADD/EDIT MODAL ───────────────────────────────────────────────────────────
