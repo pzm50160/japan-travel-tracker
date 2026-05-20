@@ -416,22 +416,15 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   </div>
   <div class="trip-screen-title">旅遊記帳 ✈️</div>
   <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
+  <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:10px" onclick="showCreateTrip()">＋ 建立新旅程</button>
+  <button class="btn-cancel" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:16px" onclick="showJoinTrip()">🔗 輸入邀請碼加入旅程</button>
+  <div class="divider">我的旅程</div>
   <input class="trip-search" id="tripSearchInput" placeholder="🔍 搜尋旅程名稱..." oninput="renderMyTrips()">
-  <div id="tripDateFilterRow" style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
-    <span style="font-size:11px;color:var(--text3);white-space:nowrap">日期篩選</span>
-    <input type="date" class="form-input" id="tripSearchFrom" oninput="renderMyTrips()" style="flex:1;font-size:12px;padding:7px 10px">
-    <span style="font-size:11px;color:var(--text3)">～</span>
-    <input type="date" class="form-input" id="tripSearchTo" oninput="renderMyTrips()" style="flex:1;font-size:12px;padding:7px 10px">
-    <button onclick="clearTripDateFilter()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;white-space:nowrap;padding:0">清除</button>
-  </div>
   <div id="myTripsList"></div>
   <div id="archivedTripsSection" style="display:none">
     <div style="font-size:12px;font-weight:500;color:var(--text2);margin:8px 0 8px;display:flex;align-items:center;gap:6px">📦 封存的旅程</div>
     <div id="archivedTripsList"></div>
   </div>
-  <div class="divider">或</div>
-  <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:10px" onclick="showCreateTrip()">＋ 建立新旅程</button>
-  <button class="btn-cancel" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm)" onclick="showJoinTrip()">🔗 輸入邀請碼加入旅程</button>
 
   <!-- Create Trip Form -->
   <div id="createTripForm" style="display:none;margin-top:16px">
@@ -1110,8 +1103,6 @@ async function renderMyTrips() {
   const btnEl = document.getElementById('tripScreenHeaderBtn');
   const guestBanner = document.getElementById('guestBanner');
   const archSection = document.getElementById('archivedTripsSection');
-  const searchRow = document.getElementById('tripDateFilterRow');
-
   if (!state.user) {
     // 訪客模式
     if (emailEl) emailEl.textContent = '訪客';
@@ -1119,7 +1110,6 @@ async function renderMyTrips() {
     if (btnEl) { btnEl.textContent = '登入帳號'; btnEl.onclick = showAuthScreen; }
     if (guestBanner) guestBanner.style.display = 'block';
     if (archSection) archSection.style.display = 'none';
-    if (searchRow) searchRow.style.display = 'none';
     // 從 localStorage 讀取
     const cont = document.getElementById('myTripsList');
     const saved = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
@@ -1142,7 +1132,6 @@ async function renderMyTrips() {
   if (labelEl) labelEl.textContent = '登入帳號';
   if (btnEl) { btnEl.textContent = '登出'; btnEl.onclick = authSignOut; }
   if (guestBanner) guestBanner.style.display = 'none';
-  if (searchRow) searchRow.style.display = 'flex';
 
   const searchVal = (document.getElementById('tripSearchInput')?.value || '').trim().toLowerCase();
   const cont = document.getElementById('myTripsList');
@@ -1180,20 +1169,11 @@ async function renderMyTrips() {
     trip: tripsData.find(t => t.id === ut.trip_id)
   })).filter(ut => ut.trip);
 
-  const fromDate = document.getElementById('tripSearchFrom')?.value;
-  const toDate = document.getElementById('tripSearchTo')?.value;
-
-  const matchDate = (ut) => {
-    if (fromDate && ut.trip.end_date < fromDate) return false;
-    if (toDate && ut.trip.start_date > toDate) return false;
-    return true;
-  };
-
   const active = combined.filter(ut => !ut.trip.archived);
   const archived = combined.filter(ut => ut.trip.archived);
 
-  const filtActive = active.filter(ut => (!searchVal || ut.trip.name?.toLowerCase().includes(searchVal)) && matchDate(ut));
-  const filtArchived = archived.filter(ut => (!searchVal || ut.trip.name?.toLowerCase().includes(searchVal)) && matchDate(ut));
+  const filtActive = active.filter(ut => !searchVal || ut.trip.name?.toLowerCase().includes(searchVal));
+  const filtArchived = archived.filter(ut => !searchVal || ut.trip.name?.toLowerCase().includes(searchVal));
 
   const tripCard = (ut, isArchived) => {
     const t = ut.trip;
@@ -4145,13 +4125,6 @@ async function loadPackCustomization() {
   renderPackList();
 }
 
-function clearTripDateFilter() {
-  const f = document.getElementById('tripSearchFrom');
-  const t = document.getElementById('tripSearchTo');
-  if (f) f.value = '';
-  if (t) t.value = '';
-  renderMyTrips();
-}
 
 function renderPackList() {
   const items = getPackItems();
