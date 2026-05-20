@@ -1015,6 +1015,10 @@ function showApp() {
   document.getElementById('tripScreen').classList.remove('show');
   document.getElementById('mainNav').style.display = 'flex';
   document.getElementById('mainFab').style.display = 'flex';
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-home').classList.add('active');
+  document.querySelector('.nav-btn').classList.add('active');
   renderHome();
 }
 function showTripScreen() {
