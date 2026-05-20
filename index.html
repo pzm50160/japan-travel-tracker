@@ -877,7 +877,28 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 
 <div class="toast" id="toast"></div>
 
+<!-- GLOBAL ERROR DISPLAY -->
+<div id="globalError" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px">
+  <div style="font-size:40px">⚠️</div>
+  <div style="font-size:16px;font-weight:700;color:var(--danger)">程式載入失敗</div>
+  <div class="err-msg" style="font-size:12px;color:var(--text2);text-align:center;word-break:break-all;max-width:380px;background:#fff;padding:12px;border-radius:8px;border:1px solid var(--border)"></div>
+  <button onclick="location.reload()" style="padding:12px 28px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">重新整理</button>
+</div>
+
 <script>
+// ─── GLOBAL ERROR HANDLER ────────────────────────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  document.getElementById('loadingScreen').classList.add('hidden');
+  const errDiv = document.getElementById('globalError');
+  if (errDiv) { errDiv.style.display = 'flex'; errDiv.querySelector('.err-msg').textContent = (err?.message || msg) + ' (line ' + line + ')'; }
+  return false;
+};
+window.addEventListener('unhandledrejection', e => {
+  document.getElementById('loadingScreen').classList.add('hidden');
+  const errDiv = document.getElementById('globalError');
+  if (errDiv) { errDiv.style.display = 'flex'; errDiv.querySelector('.err-msg').textContent = String(e.reason?.message || e.reason || 'Unknown error'); }
+});
+
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
@@ -4209,7 +4230,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ─── START ────────────────────────────────────────────────────────────────────
-init();
+init().catch(e => {
+  document.getElementById('loadingScreen').classList.add('hidden');
+  const errDiv = document.getElementById('globalError');
+  if (errDiv) { errDiv.style.display = 'flex'; errDiv.querySelector('.err-msg').textContent = String(e?.message || e); }
+});
 autoUpdate();
 </script>
 </body>
