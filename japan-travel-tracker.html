@@ -922,7 +922,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260521-4';
+const APP_VER = '20260521-5';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3970,6 +3970,7 @@ function openGameRoundModal(roundId) {
       <div style="display:flex;align-items:center;gap:6px">
         <button onclick="adjustGScore('${p.id}',-1)" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:17px;cursor:pointer;line-height:1">−</button>
         <input type="number" id="gscore_${p.id}" value="${val}" oninput="updateGSum()"
+          onfocus="if(this.value==='0')this.value=''" onblur="if(this.value===''||this.value==='-')this.value='0'"
           style="width:62px;text-align:center;border:1px solid var(--border);border-radius:8px;padding:6px 4px;font-size:15px;font-weight:700;font-family:'DM Mono',monospace">
         <button onclick="adjustGScore('${p.id}',1)" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:17px;cursor:pointer;line-height:1">＋</button>
       </div>
