@@ -922,7 +922,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260521-3';
+const APP_VER = '20260521-4';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3636,7 +3636,13 @@ function switchSession(id) {
 
 function renderGameSessionTabs() {
   const el = document.getElementById('gameSessionTabs');
-  if (!el || !gData.sessions.length) { if (el) el.innerHTML=''; return; }
+  if (!el) return;
+  if (!gData.sessions.length) {
+    el.innerHTML = `<div style="margin-bottom:10px">
+      <button onclick="newGameSession()" style="width:100%;padding:10px;border-radius:12px;border:1.5px dashed var(--orange);background:transparent;color:var(--orange);font-size:13px;cursor:pointer">＋ 建立第一個場次</button>
+    </div>`;
+    return;
+  }
   const tabs = gData.sessions.map(s => {
     const isActive = s.id === gData.activeSessionId;
     return `<button onclick="switchSession('${s.id}')" oncontextmenu="event.preventDefault();renameSession('${s.id}')" style="white-space:nowrap;padding:6px 14px;border-radius:20px;border:1px solid ${isActive?'var(--orange)':'var(--border)'};background:${isActive?'var(--orange)':'var(--surface)'};color:${isActive?'white':'var(--text)'};font-size:12px;font-weight:${isActive?'600':'400'};cursor:pointer;flex-shrink:0">${s.name} <span style="opacity:.7;font-size:10px">${s.rounds.length}局</span></button>`;
@@ -3899,6 +3905,12 @@ function toggleGameMember(memberId) {
 
 async function confirmSelectedGameMembers() {
   if (!selectedGameMemberIds.size) return;
+  // 沒有場次 → 自動建立第一場
+  if (!gData.sessions.length) {
+    const sess = { id: 'sess_' + Date.now(), name: '第 1 場', date: new Date().toISOString().split('T')[0], players: [], rounds: [] };
+    gData.sessions.push(sess);
+    gData.activeSessionId = sess.id;
+  }
   const sess = activeSession();
   let added = 0;
   for (const memberId of selectedGameMemberIds) {
@@ -3917,6 +3929,12 @@ async function confirmSelectedGameMembers() {
 async function confirmAddGamePlayer() {
   const name = document.getElementById('gamePlayerName').value.trim();
   if (!name) { showToast('請輸入名稱'); return; }
+  // 沒有場次 → 自動建立第一場
+  if (!gData.sessions.length) {
+    const s0 = { id: 'sess_' + Date.now(), name: '第 1 場', date: new Date().toISOString().split('T')[0], players: [], rounds: [] };
+    gData.sessions.push(s0);
+    gData.activeSessionId = s0.id;
+  }
   const sess = activeSession();
   if (sess.players.find(p=>p.name===name)) { showToast('已有同名玩家'); return; }
   sess.players.push({ id:'g'+Date.now(), name });
@@ -3935,6 +3953,7 @@ async function removeGamePlayer(id) {
 
 let editingRoundId = null, autoCalcPid = null, gRoundFilter = null;
 function openGameRoundModal(roundId) {
+  if (!gData.sessions.length) { showToast('請先建立場次並新增玩家'); return; }
   const sess = activeSession();
   if (!sess.players.length) { showToast('請先新增玩家'); return; }
   editingRoundId = roundId||null;
