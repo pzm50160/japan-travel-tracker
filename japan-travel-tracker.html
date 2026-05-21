@@ -2567,7 +2567,8 @@ async function getExifOrientation(file) {
 }
 async function fixPhotoOrientation(dataUrl, file) {
   const ori = await getExifOrientation(file);
-  // 一律過 canvas：統一壓縮成 JPEG、修正方向、相容 HEIC
+  // 方向正常且檔案小：直接回傳，不跑 canvas（快速路徑）
+  if (ori === 1 && file.size < 2 * 1024 * 1024) return dataUrl;
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -2587,15 +2588,15 @@ async function fixPhotoOrientation(dataUrl, file) {
       else if (ori===8) ctx.transform(0,-1,1,0,0,w);
       ctx.drawImage(img, 0, 0); ctx.restore();
       const MAX = 1400;
-      const ratio = Math.min(MAX/canvas.width, MAX/canvas.height, 1);
-      if (ratio < 1) {
+      if (canvas.width > MAX || canvas.height > MAX) {
+        const ratio = Math.min(MAX/canvas.width, MAX/canvas.height);
         const c2 = document.createElement('canvas');
         c2.width = Math.round(canvas.width*ratio); c2.height = Math.round(canvas.height*ratio);
         c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
         resolve(c2.toDataURL('image/jpeg', 0.85));
       } else resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
-    img.onerror = () => resolve(dataUrl); // fallback
+    img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
 }
