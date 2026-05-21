@@ -718,9 +718,16 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div id="addMemberForm" style="display:none;border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
       <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">新增旅伴（不需要使用 App）</div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-        <div id="addMemberAvatarPreview" style="width:44px;height:44px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">😊</div>
-        <div style="display:flex;gap:5px;flex-wrap:wrap" id="addMemberEmojiPicker"></div>
+        <div style="position:relative;flex-shrink:0" onclick="openAddMemberAvatarPicker()">
+          <div id="addMemberAvatarPreview" style="width:48px;height:48px;border-radius:50%;background:var(--bg);border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;overflow:hidden">😊</div>
+          <div style="position:absolute;bottom:0;right:0;width:16px;height:16px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;pointer-events:none">📷</div>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:5px">選 Emoji 或點頭像上傳照片</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap" id="addMemberEmojiPicker"></div>
+        </div>
       </div>
+      <input type="file" id="addMemberPhotoInput" accept="image/*" style="display:none" onchange="handleAddMemberPhoto(this.files[0])">
       <input class="form-input" id="addMemberName" placeholder="旅伴名字" style="margin-bottom:8px">
       <div style="display:flex;gap:7px">
         <button class="btn-cancel" style="flex:1;padding:8px;font-size:12px" onclick="toggleAddMemberForm()">取消</button>
@@ -1852,7 +1859,7 @@ function renderHeroBanner() {
   // 只用第一張做全幅封面
   const covers = t.cover_photos || DEFAULT_COVERS;
   const photo = covers[0];
-  const hasPhoto = photo && photo.startsWith('data:');
+  const hasPhoto = photo && (photo.startsWith('http') || photo.startsWith('data:') || photo.startsWith('blob:'));
 
   const bgHtml = hasPhoto
     ? `<div class="hero-banner-bg"><img src="${photo}"></div>`
@@ -2155,6 +2162,31 @@ async function saveTripSetting() {
   showToast('設定已儲存');
 }
 let addMemberSelEmoji = '😊';
+let addMemberPhotoBase64 = null;
+
+function openAddMemberAvatarPicker() {
+  const bd = document.createElement('div');
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:flex-end;justify-content:center';
+  bd.onclick = () => bd.remove();
+  bd.innerHTML = `<div onclick="event.stopPropagation()" style="width:100%;max-width:480px;background:var(--surface);border-radius:20px 20px 0 0;padding:20px 16px 28px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px;text-align:center">選擇頭像</div>
+    <button onclick="document.getElementById('addMemberPhotoInput').removeAttribute('capture');document.getElementById('addMemberPhotoInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:8px;text-align:left">🖼️　從相簿選取</button>
+    <button onclick="document.getElementById('addMemberPhotoInput').setAttribute('capture','user');document.getElementById('addMemberPhotoInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:14px;text-align:left">📷　拍照</button>
+    <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:12px;border:none;border-radius:12px;background:var(--bg);font-family:inherit;font-size:14px;cursor:pointer;color:var(--text2)">取消</button>
+  </div>`;
+  document.body.appendChild(bd);
+}
+
+function handleAddMemberPhoto(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    addMemberPhotoBase64 = e.target.result;
+    const prev = document.getElementById('addMemberAvatarPreview');
+    prev.innerHTML = `<img src="${addMemberPhotoBase64}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  reader.readAsDataURL(file);
+}
 
 function toggleAddMemberForm() {
   const form = document.getElementById('addMemberForm');
@@ -2163,7 +2195,8 @@ function toggleAddMemberForm() {
   if (!visible) {
     document.getElementById('addMemberName').value = '';
     addMemberSelEmoji = '😊';
-    document.getElementById('addMemberAvatarPreview').textContent = '😊';
+    addMemberPhotoBase64 = null;
+    document.getElementById('addMemberAvatarPreview').innerHTML = '😊';
     document.getElementById('addMemberEmojiPicker').innerHTML = EMOJIS.map(e =>
       `<span style="font-size:20px;cursor:pointer;padding:2px;border-radius:6px;border:2px solid ${e==='😊'?'var(--orange)':'transparent'}" onclick="pickAddMemberEmoji(this,'${e}')">${e}</span>`
     ).join('');
@@ -2172,17 +2205,24 @@ function toggleAddMemberForm() {
 
 function pickAddMemberEmoji(el, e) {
   addMemberSelEmoji = e;
+  addMemberPhotoBase64 = null; // 選 emoji 就清掉照片
   document.querySelectorAll('#addMemberEmojiPicker span').forEach(s => s.style.borderColor = 'transparent');
   el.style.borderColor = 'var(--orange)';
-  document.getElementById('addMemberAvatarPreview').textContent = e;
+  document.getElementById('addMemberAvatarPreview').innerHTML = e;
 }
 
 async function addMember() {
   const name = document.getElementById('addMemberName').value.trim();
   if (!name) { showToast('請填寫旅伴名字'); return; }
   const memberId = 'mb_' + Date.now();
-  await sb.from('members').insert({ id: memberId, name, emoji: addMemberSelEmoji, avatar_url: null, trip_id: state.tripId });
-  state.members.push({ id: memberId, name, emoji: addMemberSelEmoji, avatar_url: null, trip_id: state.tripId });
+  let avatar_url = null;
+  if (addMemberPhotoBase64) {
+    showToast('上傳照片中...');
+    try { avatar_url = await uploadToStorage(dataUrlToBlob(addMemberPhotoBase64), 'avatars'); } catch(e) { showToast('照片上傳失敗'); }
+  }
+  await sb.from('members').insert({ id: memberId, name, emoji: addMemberSelEmoji, avatar_url, trip_id: state.tripId });
+  state.members.push({ id: memberId, name, emoji: addMemberSelEmoji, avatar_url, trip_id: state.tripId });
+  addMemberPhotoBase64 = null;
   toggleAddMemberForm();
   renderSettings();
   showToast(`已新增 ${name}`);
@@ -2579,10 +2619,16 @@ function clearPhoto() {
 
 // ─── AVATAR (member) ──────────────────────────────────────────────────────────
 function openAvatarPicker() {
-  // Show a small modal asking camera or gallery
-  const choice = confirm('要拍照嗎？\n確定 = 開啟相機\n取消 = 從相簿選取');
-  if (choice) document.getElementById('avatarCamInput').click();
-  else document.getElementById('avatarFileInput').click();
+  const bd = document.createElement('div');
+  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:flex-end;justify-content:center';
+  bd.onclick = () => bd.remove();
+  bd.innerHTML = `<div onclick="event.stopPropagation()" style="width:100%;max-width:480px;background:var(--surface);border-radius:20px 20px 0 0;padding:20px 16px 28px">
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px;text-align:center">更換頭像</div>
+    <button onclick="document.getElementById('avatarCamInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:8px;text-align:left">📷　拍照</button>
+    <button onclick="document.getElementById('avatarFileInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:14px;text-align:left">🖼️　從相簿選取</button>
+    <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:12px;border:none;border-radius:12px;background:var(--bg);font-family:inherit;font-size:14px;cursor:pointer;color:var(--text2)">取消</button>
+  </div>`;
+  document.body.appendChild(bd);
 }
 async function handleAvatarUpload(file) {
   if (!file || !state.myMemberId) return;
