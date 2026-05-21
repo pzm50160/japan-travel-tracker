@@ -788,16 +788,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
         <img id="photoPreview" style="max-width:100%;max-height:300px;object-fit:contain;display:block;margin:0 auto;image-orientation:from-image">
         <button onclick="clearPhoto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">✕</button>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById('photoFileInput').click()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>選擇照片
-        </button>
-        <button class="btn-cancel" style="flex:1;padding:9px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:5px" onclick="document.getElementById('photoCamInput').click()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>拍照
-        </button>
-      </div>
+      <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px" onclick="document.getElementById('photoFileInput').click()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        選擇照片 / 拍照
+      </button>
       <input type="file" id="photoFileInput" accept="image/*" style="display:none" onchange="handlePhotoSelect(this.files[0])">
-      <input type="file" id="photoCamInput" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoSelect(this.files[0])">
     </div>
     <div style="border-top:1px solid var(--border);padding-top:11px;margin-top:3px">
       <label class="form-label" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">💰 費用分攤</label>
@@ -2165,16 +2160,7 @@ let addMemberSelEmoji = '😊';
 let addMemberPhotoBase64 = null;
 
 function openAddMemberAvatarPicker() {
-  const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:flex-end;justify-content:center';
-  bd.onclick = () => bd.remove();
-  bd.innerHTML = `<div onclick="event.stopPropagation()" style="width:100%;max-width:480px;background:var(--surface);border-radius:20px 20px 0 0;padding:20px 16px 28px">
-    <div style="font-size:15px;font-weight:700;margin-bottom:14px;text-align:center">選擇頭像</div>
-    <button onclick="document.getElementById('addMemberPhotoInput').removeAttribute('capture');document.getElementById('addMemberPhotoInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:8px;text-align:left">🖼️　從相簿選取</button>
-    <button onclick="document.getElementById('addMemberPhotoInput').setAttribute('capture','user');document.getElementById('addMemberPhotoInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:14px;text-align:left">📷　拍照</button>
-    <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:12px;border:none;border-radius:12px;background:var(--bg);font-family:inherit;font-size:14px;cursor:pointer;color:var(--text2)">取消</button>
-  </div>`;
-  document.body.appendChild(bd);
+  document.getElementById('addMemberPhotoInput').click();
 }
 
 function handleAddMemberPhoto(file) {
@@ -2622,16 +2608,7 @@ function clearPhoto() {
 
 // ─── AVATAR (member) ──────────────────────────────────────────────────────────
 function openAvatarPicker() {
-  const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:flex-end;justify-content:center';
-  bd.onclick = () => bd.remove();
-  bd.innerHTML = `<div onclick="event.stopPropagation()" style="width:100%;max-width:480px;background:var(--surface);border-radius:20px 20px 0 0;padding:20px 16px 28px">
-    <div style="font-size:15px;font-weight:700;margin-bottom:14px;text-align:center">更換頭像</div>
-    <button onclick="document.getElementById('avatarCamInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:8px;text-align:left">📷　拍照</button>
-    <button onclick="document.getElementById('avatarFileInput').click();this.closest('[style*=fixed]').remove()" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:inherit;font-size:14px;cursor:pointer;margin-bottom:14px;text-align:left">🖼️　從相簿選取</button>
-    <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:12px;border:none;border-radius:12px;background:var(--bg);font-family:inherit;font-size:14px;cursor:pointer;color:var(--text2)">取消</button>
-  </div>`;
-  document.body.appendChild(bd);
+  document.getElementById('avatarFileInput').click();
 }
 async function handleAvatarUpload(file) {
   if (!file || !state.myMemberId) return;
