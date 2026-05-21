@@ -784,8 +784,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <!-- 拍照附件 -->
     <div class="form-group">
       <label class="form-label">附上照片（選填）</label>
-      <div id="photoPreviewWrap" style="display:none;margin-bottom:8px;position:relative">
-        <img id="photoPreview" style="width:100%;max-height:180px;object-fit:cover;border-radius:var(--radius-sm);border:1px solid var(--border)">
+      <div id="photoPreviewWrap" style="display:none;margin-bottom:8px;position:relative;background:#f0f0f0;border-radius:var(--radius-sm);overflow:hidden;text-align:center;border:1px solid var(--border)">
+        <img id="photoPreview" style="max-width:100%;max-height:300px;object-fit:contain;display:block;margin:0 auto;image-orientation:from-image">
         <button onclick="clearPhoto()" style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,.5);color:white;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center">✕</button>
       </div>
       <div style="display:flex;gap:8px">
@@ -1968,7 +1968,7 @@ function expenseHTML(e) {
   const subAmt = e.currency==='TWD'
     ? `（直接台幣）`
     : `≈ NT$${Math.round(twdAmt).toLocaleString()}`;
-  const photoBtn = e.photo_url ? `<div style="margin-top:5px;background:var(--bg);border-radius:6px;overflow:hidden;text-align:center"><img src="${e.photo_url}" style="max-width:100%;max-height:260px;object-fit:contain;display:block;margin:0 auto;cursor:pointer;image-orientation:from-image" onclick="event.stopPropagation();showPhotoModal('${e.photo_url}')"></div>` : '';
+  const photoBtn = e.photo_url ? `<div style="margin-top:5px;background:#f0f0f0;border-radius:6px;overflow:hidden;text-align:center"><img src="${e.photo_url}" style="max-width:100%;max-height:320px;object-fit:contain;display:block;margin:0 auto;cursor:pointer;image-orientation:from-image" onclick="event.stopPropagation();showPhotoModal('${e.photo_url}')"></div>` : '';
   return `<div class="expense-row" onclick="openEditModal('${e.id}')">
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
@@ -2567,14 +2567,15 @@ async function getExifOrientation(file) {
 }
 async function fixPhotoOrientation(dataUrl, file) {
   const ori = await getExifOrientation(file);
-  if (ori === 1) return dataUrl;
+  // 一律過 canvas：統一壓縮成 JPEG、修正方向、相容 HEIC
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
       const w = img.naturalWidth, h = img.naturalHeight;
-      const canvas = document.createElement('canvas');
       const swap = [5,6,7,8].includes(ori);
-      canvas.width = swap ? h : w; canvas.height = swap ? w : h;
+      const cw = swap ? h : w, ch = swap ? w : h;
+      const canvas = document.createElement('canvas');
+      canvas.width = cw; canvas.height = ch;
       const ctx = canvas.getContext('2d');
       ctx.save();
       if (ori===2) ctx.transform(-1,0,0,1,w,0);
@@ -2586,14 +2587,15 @@ async function fixPhotoOrientation(dataUrl, file) {
       else if (ori===8) ctx.transform(0,-1,1,0,0,w);
       ctx.drawImage(img, 0, 0); ctx.restore();
       const MAX = 1400;
-      if (canvas.width > MAX || canvas.height > MAX) {
-        const ratio = Math.min(MAX/canvas.width, MAX/canvas.height);
+      const ratio = Math.min(MAX/canvas.width, MAX/canvas.height, 1);
+      if (ratio < 1) {
         const c2 = document.createElement('canvas');
         c2.width = Math.round(canvas.width*ratio); c2.height = Math.round(canvas.height*ratio);
         c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
         resolve(c2.toDataURL('image/jpeg', 0.85));
       } else resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
+    img.onerror = () => resolve(dataUrl); // fallback
     img.src = dataUrl;
   });
 }
