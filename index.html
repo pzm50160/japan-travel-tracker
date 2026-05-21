@@ -727,7 +727,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
           <div style="display:flex;gap:5px;flex-wrap:wrap" id="addMemberEmojiPicker"></div>
         </div>
       </div>
-      <input type="file" id="addMemberPhotoInput" accept="image/*" style="display:none" onchange="handleAddMemberPhoto(this.files[0])">
       <input class="form-input" id="addMemberName" placeholder="旅伴名字" style="margin-bottom:8px">
       <div style="display:flex;gap:7px">
         <button class="btn-cancel" style="flex:1;padding:8px;font-size:12px" onclick="toggleAddMemberForm()">取消</button>
@@ -737,6 +736,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   </div>
   <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(this.files[0])">
   <input type="file" id="avatarCamInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarUpload(this.files[0])">
+  <input type="file" id="addMemberPhotoInput" accept="image/*" style="display:none" onchange="handleAddMemberPhoto(this.files[0])">
   <div class="card">
     <div style="font-size:13px;font-weight:600;margin-bottom:6px">🤖 AI 收據掃描</div>
     <div style="font-size:11px;color:var(--text2);margin-bottom:10px">掃描頁需要 Anthropic API Key 才能辨識收據</div>
@@ -922,6 +922,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
+const APP_VER = '20260521-3';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4309,29 +4310,25 @@ if (location.search.startsWith('?_r=')) {
 }
 
 async function autoUpdate() {
-  if (sessionStorage.getItem('_reloading')) {
-    // We just reloaded — save the fresh ETag and stop
-    sessionStorage.removeItem('_reloading');
-    try {
-      const res = await fetch(location.href, {method:'HEAD', cache:'no-store'});
-      const ver = res.headers.get('etag') || res.headers.get('last-modified');
-      if (ver) localStorage.setItem('_appVer', ver);
-    } catch(e) {}
+  // 版本號不同 → 強制更新（最可靠）
+  if (localStorage.getItem('_appVer') !== APP_VER) {
+    localStorage.setItem('_appVer', APP_VER);
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
+    el.innerHTML = '<div style="width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></div><div style="color:#fff;font-size:14px;font-weight:600">🔄 正在更新最新版本…</div>';
+    document.body.appendChild(el);
+    setTimeout(() => window.location.replace(location.pathname + '?_r=' + Date.now()), 800);
     return;
   }
+  // ETag 檢查（背景靜默）
   try {
     const res = await fetch(location.href, {method:'HEAD', cache:'no-store'});
     const ver = res.headers.get('etag') || res.headers.get('last-modified');
     if (!ver) return;
-    const stored = localStorage.getItem('_appVer');
-    localStorage.setItem('_appVer', ver);
+    const stored = localStorage.getItem('_appEtag');
+    localStorage.setItem('_appEtag', ver);
     if (stored && stored !== ver) {
-      sessionStorage.setItem('_reloading', '1');
-      const el = document.createElement('div');
-      el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px';
-      el.innerHTML = '<div style="width:36px;height:36px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite"></div><div style="color:#fff;font-size:14px;font-weight:600">🔄 正在更新最新版本…</div>';
-      document.body.appendChild(el);
-      setTimeout(() => window.location.replace(location.pathname + '?_r=' + Date.now()), 600);
+      localStorage.removeItem('_appVer'); // 下次開啟觸發版本號更新
     }
   } catch(e) {}
 }
