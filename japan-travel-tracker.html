@@ -922,7 +922,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260521-6';
+const APP_VER = '20260521-7';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4282,9 +4282,12 @@ function renderPackList() {
   const total = items.length;
 
   const needed = total - skipped;
+  const allDone = !packEditMode && total > 0 && (ready + skipped) === total;
   document.getElementById('packProgress').textContent = packEditMode
     ? '編輯模式 — 點 ✕ 刪除，點下方新增'
-    : `進度：${ready} / ${needed}　— 不需要 ${skipped} 項`;
+    : allDone
+      ? '🎒 全部搞定！'
+      : `進度：${ready} / ${needed}　— 不需要 ${skipped} 項`;
 
   const editBtn = document.getElementById('packEditBtn');
   if (editBtn) editBtn.textContent = packEditMode ? '完成編輯' : '✏️ 自訂清單';
@@ -4295,7 +4298,14 @@ function renderPackList() {
     cats[it.cat].push(it);
   });
 
-  document.getElementById('packListContent').innerHTML = Object.entries(cats).map(([cat, list]) => `
+  const allDoneBanner = allDone ? `
+    <div style="margin:18px 0 6px;padding:18px 14px;border-radius:16px;background:linear-gradient(135deg,#FEF3C7,#D1FAE5);text-align:center;border:1.5px solid #F59E0B">
+      <div style="font-size:32px;margin-bottom:6px">✈️🎉</div>
+      <div style="font-size:16px;font-weight:800;color:#92400E;margin-bottom:4px">行李全部搞定！</div>
+      <div style="font-size:12px;color:#065F46">準備好出發了 — 旅途順利！</div>
+    </div>` : '';
+
+  document.getElementById('packListContent').innerHTML = allDoneBanner + Object.entries(cats).map(([cat, list]) => `
     <div class="pack-cat-title">${cat}</div>
     ${list.map(it => {
       const st = checked[it.name]; // 'check' | 'skip' | null/undefined
