@@ -663,8 +663,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       <button class="pack-temp-btn" data-temp="hot" onclick="setPackTemp('hot',this)">🔥 32°C+<br><span style="font-size:10px;opacity:.7">炎熱</span></button>
     </div>
   </div>
-  <label class="pack-toggle" onclick="togglePackWater()">
-    <input type="checkbox" id="packWaterCheck" onclick="event.stopPropagation()">
+  <label class="pack-toggle">
+    <input type="checkbox" id="packWaterCheck" onchange="handlePackWaterChange(this.checked)">
     <div style="flex:1">
       <div style="font-size:13px;font-weight:500">🏊 有玩水行程</div>
       <div style="font-size:11px;color:var(--text2)">泳裝、泳鏡、防水袋等</div>
@@ -4004,17 +4004,19 @@ async function confirmResetGame() {
 
 // ─── PACKING LIST ─────────────────────────────────────────────────────────────
 const PACK_BASE = [
-  { emoji:'🛂', name:'護照 / 身份證', cat:'證件' },
-  { emoji:'🎫', name:'機票 / 訂房確認', cat:'證件' },
-  { emoji:'💳', name:'信用卡 / 現金', cat:'證件' },
-  { emoji:'🪪', name:'電子簽證', cat:'證件' },
-  { emoji:'💉', name:'數位疫苗證明', cat:'證件' },
-  { emoji:'🚗', name:'國際駕照', cat:'證件' },
-  { emoji:'📱', name:'手機 + 充電線', cat:'電子' },
-  { emoji:'🔋', name:'行動電源', cat:'電子' },
+  { emoji:'🛂', name:'護照 / 身份證', cat:'證件', luggage:'carry' },
+  { emoji:'🎫', name:'機票 / 訂房確認', cat:'證件', luggage:'carry' },
+  { emoji:'💳', name:'信用卡 / 現金', cat:'證件', luggage:'carry' },
+  { emoji:'🪪', name:'電子簽證', cat:'證件', luggage:'carry' },
+  { emoji:'🚗', name:'國際駕照', cat:'證件', luggage:'carry' },
+  { emoji:'📂', name:'護照影本 / 備用大頭照', cat:'證件', luggage:'carry' },
+  { emoji:'📱', name:'手機 + 充電線', cat:'電子', luggage:'carry' },
+  { emoji:'🔋', name:'行動電源', cat:'電子', luggage:'carry', note:'❌ 不可託運' },
+  { emoji:'🔌', name:'充電頭（豆腐頭）', cat:'電子' },
   { emoji:'🎧', name:'耳機', cat:'電子' },
   { emoji:'📷', name:'相機 + 記憶卡', cat:'電子' },
   { emoji:'🔌', name:'萬用轉接頭', cat:'電子' },
+  { emoji:'📌', name:'SIM 卡針', cat:'電子' },
   { emoji:'🤳', name:'自拍棒', cat:'電子' },
   { emoji:'📶', name:'Wi-Fi 分享器 / 上網卡', cat:'電子' },
   { emoji:'💻', name:'筆電', cat:'電子' },
@@ -4034,7 +4036,7 @@ const PACK_BASE = [
   { emoji:'👓', name:'隱形眼鏡 / 眼鏡', cat:'盥洗' },
   { emoji:'🦟', name:'防蚊液', cat:'盥洗' },
   { emoji:'🩸', name:'衛生棉（女性用品）', cat:'盥洗' },
-  { emoji:'🪒', name:'刮鬍刀（男）', cat:'盥洗' },
+  { emoji:'🪒', name:'刮鬍刀（男）', cat:'盥洗', luggage:'check', note:'⚠️ 建議託運' },
   { emoji:'🪞', name:'隨身鏡子', cat:'盥洗' },
   { emoji:'😷', name:'口罩', cat:'盥洗' },
   { emoji:'👙', name:'內衣褲（多帶幾件）', cat:'衣物' },
@@ -4043,13 +4045,14 @@ const PACK_BASE = [
   { emoji:'🩴', name:'室內拖鞋', cat:'衣物' },
   { emoji:'👕', name:'日常衣物', cat:'衣物' },
   { emoji:'☂️', name:'摺疊傘', cat:'雜項' },
-  { emoji:'🔒', name:'行李箱鎖', cat:'雜項' },
+  { emoji:'🔒', name:'行李箱鎖', cat:'雜項', luggage:'check', note:'⚠️ 建議託運' },
   { emoji:'🛍️', name:'摺疊購物袋 / 塑膠袋', cat:'雜項' },
   { emoji:'🧴', name:'乾洗手 / 酒精噴瓶', cat:'雜項' },
   { emoji:'🍶', name:'水瓶 / 保溫瓶', cat:'雜項' },
   { emoji:'✏️', name:'筆', cat:'雜項' },
   { emoji:'⚖️', name:'行李秤', cat:'雜項' },
   { emoji:'🥢', name:'環保餐具', cat:'雜項' },
+  { emoji:'🛍️', name:'透明夾鏈袋（隨身液體）', cat:'雜項', note:'✈️ 過安檢必備' },
 ];
 const PACK_COLD = [
   { emoji:'🧥', name:'羽絨外套 / 厚大衣', cat:'禦寒衣物' },
@@ -4060,6 +4063,7 @@ const PACK_COLD = [
   { emoji:'🔥', name:'暖暖包', cat:'禦寒衣物' },
   { emoji:'👞', name:'保暖防滑鞋', cat:'禦寒衣物' },
   { emoji:'🧴', name:'護唇膏 / 護手霜', cat:'禦寒衣物' },
+  { emoji:'🧴', name:'護手霜 / 身體乳液', cat:'禦寒衣物' },
 ];
 const PACK_COOL = [
   { emoji:'🧥', name:'薄外套 / 風衣', cat:'涼爽衣物' },
@@ -4079,7 +4083,9 @@ const PACK_HOT = [
   { emoji:'🧢', name:'大帽簷遮陽帽', cat:'防曬配件' },
   { emoji:'👕', name:'排汗短袖 / 短褲', cat:'防曬配件' },
   { emoji:'👡', name:'涼鞋', cat:'防曬配件' },
+  { emoji:'👟', name:'透氣運動鞋', cat:'防曬配件' },
   { emoji:'💧', name:'保濕噴霧', cat:'防曬配件' },
+  { emoji:'🧻', name:'涼感濕紙巾', cat:'防曬配件' },
   { emoji:'🧴', name:'薄外套（室內冷氣用）', cat:'防曬配件' },
 ];
 const PACK_WATER = [
@@ -4106,13 +4112,6 @@ function setPackTemp(temp, el) {
   renderPackList();
 }
 
-function togglePackWater() {
-  const cb = document.getElementById('packWaterCheck');
-  cb.checked = !cb.checked;
-  packWater = cb.checked;
-  renderPackList();
-}
-
 function getPackItems() {
   const tempMap = { cold: PACK_COLD, cool: PACK_COOL, warm: PACK_WARM, hot: PACK_HOT };
   const base = [...PACK_BASE, ...(tempMap[packTemp] || []), ...(packWater ? PACK_WATER : [])];
@@ -4122,6 +4121,11 @@ function getPackItems() {
 
 function getPackState() {
   try { return JSON.parse(localStorage.getItem('packChecked') || '{}'); } catch(e) { return {}; }
+}
+
+function handlePackWaterChange(isChecked) {
+  packWater = isChecked;
+  renderPackList();
 }
 
 // state: 'check' | 'skip' | null (toggle off if already that state)
@@ -4222,9 +4226,10 @@ function renderPackList() {
   const skipped = items.filter(it => checked[it.name] === 'skip').length;
   const total = items.length;
 
+  const needed = total - skipped;
   document.getElementById('packProgress').textContent = packEditMode
     ? '編輯模式 — 點 ✕ 刪除，點下方新增'
-    : `✓ 已準備 ${ready}　— 不需要 ${skipped}　共 ${total} 項`;
+    : `進度：${ready} / ${needed}　— 不需要 ${skipped} 項`;
 
   const editBtn = document.getElementById('packEditBtn');
   if (editBtn) editBtn.textContent = packEditMode ? '完成編輯' : '✏️ 自訂清單';
@@ -4241,17 +4246,20 @@ function renderPackList() {
       const st = checked[it.name]; // 'check' | 'skip' | null/undefined
       const isCustom = packCustomItems.some(c => c.name === it.name);
       const cls = st === 'check' ? ' checked' : st === 'skip' ? ' skipped' : '';
+      const k = JSON.stringify(it.name).replace(/"/g,"'");
+      const noteHtml = it.note
+        ? `<span style="font-size:9px;font-weight:600;display:block;margin-top:2px;color:${it.luggage==='carry'?'#EF4444':it.luggage==='check'?'#F59E0B':'#6B7280'}">${it.note}</span>`
+        : '';
       if (packEditMode) {
         return `<div class="pack-item">
           <span class="pack-item-emoji">${it.emoji}</span>
-          <span class="pack-item-name">${it.name}</span>
-          <button onclick="${isCustom ? `removeCustomPackItem(${JSON.stringify(it.name).replace(/"/g,"'")})` : `hidePackItem(${JSON.stringify(it.name).replace(/"/g,"'")})`}" style="background:none;border:none;font-size:18px;color:var(--danger);cursor:pointer;padding:0 4px">✕</button>
+          <span class="pack-item-name">${it.name}${noteHtml}</span>
+          <button onclick="${isCustom ? `removeCustomPackItem(${k})` : `hidePackItem(${k})`}" style="background:none;border:none;font-size:18px;color:var(--danger);cursor:pointer;padding:0 4px">✕</button>
         </div>`;
       }
-      const k = JSON.stringify(it.name).replace(/"/g,"'");
       return `<div class="pack-item${cls}">
         <span class="pack-item-emoji">${it.emoji}</span>
-        <span class="pack-item-name">${it.name}</span>
+        <span class="pack-item-name">${it.name}${noteHtml}</span>
         <div class="pack-actions">
           <button class="pack-btn ok${st==='check'?' active':''}" onclick="setPackItemState(${k},'check')" title="已準備">✓</button>
           <button class="pack-btn skip${st==='skip'?' active':''}" onclick="setPackItemState(${k},'skip')" title="不需要">—</button>
