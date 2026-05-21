@@ -922,7 +922,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260521-5';
+const APP_VER = '20260521-6';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3962,11 +3962,11 @@ function openGameRoundModal(roundId) {
   document.getElementById('gameRoundModalTitle').textContent = roundId ? '✏️ 編輯' : '📝 記錄一局';
   document.getElementById('gameRoundInputs').innerHTML = sess.players.map(p => {
     const val = round ? (round.scores[p.id]||0) : 0;
-    return `<div id="grow_${p.id}" style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+    return `<div id="grow_${p.id}" style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border);border-radius:10px;transition:background .15s">
       ${gAvHtml(p,34)}
       <span style="font-size:13px;font-weight:600;flex:1">${p.name}</span>
       <button id="gauto_${p.id}" onclick="toggleAutoCalc('${p.id}')" title="自動計算贏家分數"
-        style="background:none;border:1px solid var(--border);border-radius:8px;padding:3px 7px;font-size:13px;cursor:pointer;color:var(--text2)">🎯</button>
+        style="border:1.5px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer;background:none;color:var(--text2);transition:all .15s;white-space:nowrap">🎯 贏家</button>
       <div style="display:flex;align-items:center;gap:6px">
         <button onclick="adjustGScore('${p.id}',-1)" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:var(--bg);font-size:17px;cursor:pointer;line-height:1">−</button>
         <input type="number" id="gscore_${p.id}" value="${val}" oninput="updateGSum()"
@@ -3989,11 +3989,19 @@ function toggleAutoCalc(pid) {
   activePlayers().forEach(p => {
     const btn = document.getElementById('gauto_'+p.id);
     const inp = document.getElementById('gscore_'+p.id);
-    if (!btn || !inp) return;
+    const row = document.getElementById('grow_'+p.id);
+    if (!btn || !inp || !row) return;
     const isAuto = autoCalcPid === p.id;
-    btn.style.background = isAuto ? 'var(--primary)' : 'none';
-    btn.style.color = isAuto ? '#fff' : 'var(--text2)';
-    inp.readOnly = isAuto;
+    // 整行高亮
+    row.style.background = isAuto ? 'rgba(255,180,0,0.13)' : '';
+    row.style.borderColor  = isAuto ? '#F59E0B' : 'var(--border)';
+    // 按鈕樣式
+    btn.style.background   = isAuto ? '#F59E0B' : 'none';
+    btn.style.color        = isAuto ? '#fff'    : 'var(--text2)';
+    btn.style.borderColor  = isAuto ? '#F59E0B' : 'var(--border)';
+    btn.textContent        = isAuto ? '👑 贏家' : '🎯 贏家';
+    // 分數欄
+    inp.readOnly      = isAuto;
     inp.style.opacity = isAuto ? '0.5' : '1';
   });
   updateGSum();
