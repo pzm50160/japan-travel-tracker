@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-9';
+const APP_VER = '20260523-10';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2511,8 +2511,17 @@ async function handleFile(file){
 【藥妝・日用品】
 シャンプー=洗髮精、リンス/コンディショナー=潤髮乳、ボディソープ=沐浴乳、歯ブラシ=牙刷、歯磨き粉=牙膏、洗顔料=洗面乳、化粧水=化妝水、乳液=乳液、日焼け止め=防曬乳、マスク=口罩、絆創膏=OK繃、胃薬=胃藥、解熱剤=退燒藥、電池=電池、傘=雨傘
 
+【分類判斷】根據店家類型與品項，從以下選一個最符合的分類：
+- 餐飲：餐廳、居酒屋、咖啡廳、速食、拉麵店、壽司店、便利商店熟食
+- 購物：超市、百貨、服飾、電器、便利商店日用品
+- 交通：電車、巴士、計程車、停車場、高速公路
+- 住宿：飯店、旅館、民宿
+- 門票：主題樂園、博物館、景點、溫泉
+- 藥品：藥妝店、藥局
+- 其他：無法歸類者
+
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
-{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
+{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或購物或交通或住宿或門票或藥品或其他","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
@@ -2522,7 +2531,30 @@ function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();
 let pendingReceipt=null;
 function showReceiptResult(data){
   pendingReceipt=data;
-  document.getElementById('scanResult').innerHTML='<div class="result-card"><div class="result-header"><div><div class="store-name">'+data.store_name_zh+'</div><div class="store-original">'+data.store_name_ja+'</div></div><div class="result-date">'+data.date+'</div></div><div class="items-header"><span class="items-title">購買明細</span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>'+data.items.map((it,i)=>'<div class="result-item"><div class="item-num">'+(i+1)+'</div><div class="item-info"><div class="item-name">'+it.name_zh+'</div><div class="item-sub">'+it.name_ja+' · '+(it.quantity||1)+'x ¥'+it.price+'</div></div><div class="item-price">¥'+((it.quantity||1)*it.price).toLocaleString()+'</div></div>').join('')+'<button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（整張收據合計 ¥'+(data.total||data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0)).toLocaleString()+'）</button><div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div></div>';
+  const validCats=['餐飲','購物','交通','住宿','門票','藥品','其他'];
+  const cat=validCats.includes(data.category)?data.category:'購物';
+  pendingReceipt.category=cat;
+  const catBtns=validCats.map(c=>`<button onclick="setPendingCat('${c}',this)" style="padding:5px 10px;border-radius:20px;border:1.5px solid ${c===cat?'var(--orange)':'var(--border)'};background:${c===cat?'var(--orange)':'none'};color:${c===cat?'#fff':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">${c}</button>`).join('');
+  const total=data.total||data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  document.getElementById('scanResult').innerHTML=`<div class="result-card">
+    <div class="result-header"><div><div class="store-name">${data.store_name_zh}</div><div class="store-original">${data.store_name_ja}</div></div><div class="result-date">${data.date}</div></div>
+    <div style="margin:10px 0 6px;font-size:11px;font-weight:600;color:var(--text2)">分類</div>
+    <div id="receiptCatBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${catBtns}</div>
+    <div class="items-header"><span class="items-title">購買明細</span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
+    ${data.items.map((it,i)=>`<div class="result-item"><div class="item-num">${i+1}</div><div class="item-info"><div class="item-name">${it.name_zh}</div><div class="item-sub">${it.name_ja} · ${it.quantity||1}x ¥${it.price}</div></div><div class="item-price">¥${((it.quantity||1)*it.price).toLocaleString()}</div></div>`).join('')}
+    <button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（整張收據合計 ¥${total.toLocaleString()}）</button>
+    <div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div>
+  </div>`;
+}
+function setPendingCat(cat,btn){
+  if(!pendingReceipt)return;
+  pendingReceipt.category=cat;
+  document.querySelectorAll('#receiptCatBtns button').forEach(b=>{
+    const active=b===btn;
+    b.style.borderColor=active?'var(--orange)':'var(--border)';
+    b.style.background=active?'var(--orange)':'none';
+    b.style.color=active?'#fff':'var(--text2)';
+  });
 }
 function addItemToReceipt(){if(!pendingReceipt)return;const name=prompt('品項名稱：');if(!name)return;const price=parseInt(prompt('金額（日圓）：')||0);if(!price)return;pendingReceipt.items.push({name_zh:name,name_ja:name,price,quantity:1,tax_rate:10});showReceiptResult(pendingReceipt);}
 async function saveReceiptExpenses(){
@@ -2531,7 +2563,7 @@ async function saveReceiptExpenses(){
   const defPart=state.members.reduce((a,m)=>({...a,[m.id]:true}),{});
   const total=pendingReceipt.total||pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
   const notes=pendingReceipt.items.map(it=>`${it.name_zh} ¥${((it.quantity||1)*it.price).toLocaleString()}${(it.quantity||1)>1?' x'+(it.quantity||1):''}`).join('\n');
-  const single={id:'exp_'+Date.now(),name:pendingReceipt.store_name_zh||(pendingReceipt.items[0]?.name_zh||'收據'),amount:total,date:pendingReceipt.date,cat:'購物',pay:'現金',store:pendingReceipt.store_name_zh,notes,payer_id:payerId,split_mode:'equal',participants:{...defPart},trip_id:state.tripId};
+  const single={id:'exp_'+Date.now(),name:pendingReceipt.store_name_zh||(pendingReceipt.items[0]?.name_zh||'收據'),amount:total,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:'現金',store:pendingReceipt.store_name_zh,notes,payer_id:payerId,split_mode:'equal',participants:{...defPart},trip_id:state.tripId};
   await sb.from('expenses').insert(single);
   await loadAll();
   pendingReceipt=null;
