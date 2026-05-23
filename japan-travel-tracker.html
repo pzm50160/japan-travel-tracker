@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-2';
+const APP_VER = '20260523-3';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1561,6 +1561,7 @@ async function createTrip() {
     });
     localStorage.setItem('jpTripId', tripId);
     localStorage.setItem('jpMemberId', memberId);
+    localStorage.removeItem('packChecked'); // 新旅程重置行李清單
     if (state.user) {
       await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: tripId, member_id: memberId, role: 'owner' });
     } else {
@@ -1991,6 +1992,8 @@ function expenseHTML(e) {
       <div class="amount-jpy">${dispAmt}</div>
       <div class="amount-twd">${subAmt}</div>
       <div class="payer-avatars">${avs}</div>
+      <button onclick="event.stopPropagation();deleteExpense('${e.id}')"
+        style="margin-top:4px;background:none;border:none;font-size:15px;cursor:pointer;color:var(--text3);padding:2px 0;line-height:1" title="刪除">🗑️</button>
     </div>
   </div>`;
 }
@@ -2279,6 +2282,14 @@ function openAddModal() {
   renderModalSelects();
   setCurrency('JPY');
   document.getElementById('addModal').classList.add('open');
+}
+async function deleteExpense(id) {
+  if (state.trip?.archived) { showToast('封存的旅程無法刪除花費'); return; }
+  if (!confirm('確定要刪除這筆記錄？')) return;
+  await sb.from('expenses').delete().eq('id', id);
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  renderRecords(); renderSummary();
+  showToast('已刪除');
 }
 function openEditModal(id) {
   if (state.trip?.archived) { showToast('封存的旅程無法編輯花費'); return; }
