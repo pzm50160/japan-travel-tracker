@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-3';
+const APP_VER = '20260523-4';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2288,7 +2288,7 @@ async function deleteExpense(id) {
   if (!confirm('確定要刪除這筆記錄？')) return;
   await sb.from('expenses').delete().eq('id', id);
   state.expenses = state.expenses.filter(e => e.id !== id);
-  renderRecords(); renderSummary();
+  renderRecords(); renderHome();
   showToast('已刪除');
 }
 function openEditModal(id) {
