@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-13';
+const APP_VER = '20260523-14';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1577,7 +1577,6 @@ async function createTrip() {
     });
     localStorage.setItem('jpTripId', tripId);
     localStorage.setItem('jpMemberId', memberId);
-    localStorage.removeItem('packChecked'); // 新旅程重置行李清單
     localStorage.setItem('tripCurrency_'+tripId, _newTripCurrency);
     state.primaryCurrency = _newTripCurrency;
     if (state.user) {
@@ -4310,8 +4309,11 @@ function getPackItems() {
   return [...filtered, ...packCustomItems];
 }
 
+function packStateKey() {
+  return `packChecked_${state.tripId||'default'}_${packTemp}`;
+}
 function getPackState() {
-  try { return JSON.parse(localStorage.getItem('packChecked') || '{}'); } catch(e) { return {}; }
+  try { return JSON.parse(localStorage.getItem(packStateKey()) || '{}'); } catch(e) { return {}; }
 }
 
 function handlePackWaterChange(isChecked) {
@@ -4324,13 +4326,13 @@ function setPackItemState(key, newState) {
   if (packEditMode) return;
   const st = getPackState();
   st[key] = (st[key] === newState) ? null : newState;
-  localStorage.setItem('packChecked', JSON.stringify(st));
+  localStorage.setItem(packStateKey(), JSON.stringify(st));
   renderPackList();
 }
 
 function resetPackList() {
   if (!confirm('確定要清除所有狀態？')) return;
-  localStorage.removeItem('packChecked');
+  localStorage.removeItem(packStateKey());
   renderPackList();
 }
 
