@@ -58,7 +58,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .loading-spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* TRIP SELECT SCREEN */
-.trip-screen{position:fixed;inset:0;background:var(--bg);z-index:500;overflow-y:auto;padding:24px 16px;display:none;flex-direction:column;max-width:480px;margin:0 auto}
+.trip-screen{position:fixed;inset:0;background:var(--bg);z-index:500;overflow-y:auto;overflow-x:hidden;padding:24px 16px;display:none;flex-direction:column;max-width:480px;margin:0 auto}
 .trip-screen.show{display:flex}
 .trip-screen-title{font-size:22px;font-weight:700;margin-bottom:4px}
 .trip-screen-sub{font-size:13px;color:var(--text2);margin-bottom:24px}
@@ -420,16 +420,18 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <div id="guestBanner" style="display:none;background:#FEF3E2;border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;color:#B45309">
     📱 訪客模式：旅程只存在這台裝置。<span onclick="showAuthScreen()" style="font-weight:600;cursor:pointer;text-decoration:underline">登入帳號</span>可永久保存。
   </div>
-  <div class="trip-screen-title">旅遊記帳 ✈️</div>
-  <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
-  <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:10px" onclick="showCreateTrip()">＋ 建立新旅程</button>
-  <button class="btn-cancel" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:16px" onclick="showJoinTrip()">🔗 輸入邀請碼加入旅程</button>
-  <div class="divider">我的旅程</div>
-  <input class="trip-search" id="tripSearchInput" placeholder="🔍 搜尋旅程名稱..." oninput="renderMyTrips()">
-  <div id="myTripsList"></div>
-  <div id="archivedTripsSection" style="display:none">
-    <div style="font-size:12px;font-weight:500;color:var(--text2);margin:8px 0 8px;display:flex;align-items:center;gap:6px">📦 封存的旅程</div>
-    <div id="archivedTripsList"></div>
+  <div id="tripMainContent">
+    <div class="trip-screen-title">旅遊記帳 ✈️</div>
+    <div class="trip-screen-sub">選擇或建立旅程，與旅伴即時同步</div>
+    <button class="btn-save" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:10px" onclick="showCreateTrip()">＋ 建立新旅程</button>
+    <button class="btn-cancel" style="width:100%;padding:13px;font-size:14px;border-radius:var(--radius-sm);margin-bottom:16px" onclick="showJoinTrip()">🔗 輸入邀請碼加入旅程</button>
+    <div class="divider">我的旅程</div>
+    <input class="trip-search" id="tripSearchInput" placeholder="🔍 搜尋旅程名稱..." oninput="renderMyTrips()">
+    <div id="myTripsList"></div>
+    <div id="archivedTripsSection" style="display:none">
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin:8px 0 8px;display:flex;align-items:center;gap:6px">📦 封存的旅程</div>
+      <div id="archivedTripsList"></div>
+    </div>
   </div>
 
   <!-- Create Trip Form -->
@@ -483,7 +485,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       </div>
     </div>
     <div class="btn-row">
-      <button class="btn-cancel" onclick="document.getElementById('createTripForm').style.display='none'">取消</button>
+      <button class="btn-cancel" onclick="showTripMain()">取消</button>
       <button class="btn-save" id="createTripBtn" onclick="createTrip()">建立旅程 →</button>
     </div>
   </div>
@@ -496,7 +498,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div id="joinStep1">
       <div class="form-group"><label class="form-label">邀請碼（6位數）</label><input class="form-input" id="joinCode" placeholder="ABC123" style="letter-spacing:3px;font-family:'DM Mono',monospace;font-size:18px;text-transform:uppercase"></div>
       <div class="btn-row">
-        <button class="btn-cancel" onclick="document.getElementById('joinTripForm').style.display='none'">取消</button>
+        <button class="btn-cancel" onclick="showTripMain()">取消</button>
         <button class="btn-save" id="lookupTripBtn" onclick="lookupTrip()">查詢旅程 →</button>
       </div>
     </div>
@@ -922,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-1';
+const APP_VER = '20260523-2';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1264,11 +1266,18 @@ async function selectTrip(tripId, memberId) {
   subscribeRealtime();
 }
 
+function showTripMain() {
+  document.getElementById('tripMainContent').style.display = '';
+  document.getElementById('createTripForm').style.display = 'none';
+  document.getElementById('joinTripForm').style.display = 'none';
+}
 function showCreateTrip() {
+  document.getElementById('tripMainContent').style.display = 'none';
   document.getElementById('createTripForm').style.display = 'block';
   document.getElementById('joinTripForm').style.display = 'none';
 }
 function showJoinTrip() {
+  document.getElementById('tripMainContent').style.display = 'none';
   document.getElementById('joinTripForm').style.display = 'block';
   document.getElementById('createTripForm').style.display = 'none';
 }
