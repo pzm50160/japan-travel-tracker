@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-8';
+const APP_VER = '20260523-9';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2484,24 +2484,35 @@ async function handleFile(file){
   if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
   try{
     const b64=await toBase64(file);const mtype=(file.type&&file.type!=='image/heic'&&file.type!=='image/heif')?file.type:'image/jpeg';
-    const receiptPrompt = `你是專業日本收據辨識師，精通日文食品、日用品與零售業商品知識。請仔細分析這張收據圖片的每個品項。
+    const receiptPrompt = `你是頂尖的日本收據辨識專家，精通日文、熟悉日本各類消費場所（超市、便利商店、餐廳、居酒屋、百貨公司、藥妝店）的商品與菜單。請逐字仔細辨識收據圖片中每個品項，給出最精確的繁體中文翻譯。
 
-【辨識規則】
-1. 逐字對照收據文字，切勿猜測或混淆不同品項
-2. 常見日文品項對照（僅供參考，以實際文字為準）：
-   - タマネギ/玉ねぎ = 洋蔥　ニンジン = 紅蘿蔔　キャベツ = 高麗菜　ジャガイモ = 馬鈴薯
-   - アシタバ = 明日葉（蔬菜）　ホウレンソウ = 菠菜　トマト = 番茄
-   - ガーナミルク = 迦納牛奶巧克力　ナッツバー = 堅果棒　ピスタチオ = 開心果
-   - カニカマ/カニカマイリ = 蟹肉棒　スパゲ/スパゲッティ = 義大利麵　ミートソース = 肉醬
-   - スイートコーン = 甜玉米　デラウエア = 特拉華葡萄（小串紅葡萄）
-   - ミルク/牛乳 = 牛奶　ヨーグルト = 優格　チーズ = 起司
-3. 收據格式各異，靈活辨識品名欄與金額欄（金額通常在行尾，有 ¥ 符號或數字）
-4. 品項有時前面有商品條碼編號，忽略編號只取品名
-5. 翻譯成繁體中文，貼近台灣日常用語
-6. 數量若未標示預設為 1
+【辨識原則】
+1. 完整讀取每一行文字，品名與金額分開辨識，不要混淆
+2. 有數量標示（個/本/枚/杯/人）的要正確抓取數量
+3. 沒有金額或金額為0的品項（如免費冰水お冷、備註文字）不要列入
+4. 條碼編號、商品編號開頭的數字忽略，只取品名
+5. 翻譯貼近台灣繁體中文用語
 
-【輸出格式】只回傳 JSON，不要任何說明文字或 markdown：
-{"store_name_zh":"店名繁中","store_name_ja":"店名日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
+【蔬果生鮮】
+タマネギ/玉ねぎ=洋蔥、ニンジン/人参=紅蘿蔔、キャベツ=高麗菜、ジャガイモ=馬鈴薯、サツマイモ=地瓜、ブロッコリー=花椰菜、ホウレンソウ=菠菜、トマト=番茄、キュウリ=小黃瓜、ナス=茄子、ピーマン=青椒、ゴボウ=牛蒡、レンコン=蓮藕、アシタバ=明日葉、枝豆=毛豆、デラウエア=特拉華葡萄、イチゴ=草莓、バナナ=香蕉、リンゴ=蘋果、ミカン=橘子、スイカ=西瓜
+
+【肉・魚・海鮮】
+牛肉=牛肉、豚肉=豬肉、鶏肉/とり=雞肉、鶏テキ=照燒雞腿排、カルビ=牛/豬肋排、ロース=里肌肉、ミンチ=絞肉、サーモン=鮭魚、まぐろ=鮪魚、えび=蝦、いか=花枝、たこ=章魚、かに=螃蟹、カニカマ=蟹肉棒、あさり=蛤蜊、しじみ=蜆、ほたて=干貝、さば=鯖魚、さんま=秋刀魚、鮭=鮭魚
+
+【餐廳・居酒屋菜單】
+焼おにぎり=烤飯糰、おにぎり=飯糰、チャージ料/お通し代=座位費、テーブルチャージ=桌位費、サービス料=服務費、GW料金=黃金週附加費、石焼=石鍋、クッパ=韓式湯飯（牛肉湯泡飯）、ビビンバ=石鍋拌飯、チゲ=韓式鍋、カルビクッパ=牛小排韓式湯飯、じゃがバター=奶油烤馬鈴薯、唐揚げ=炸雞塊、とんかつ=日式炸豬排、天ぷら=天婦羅、焼きとり=烤雞串、串カツ=炸串、餃子=煎餃、ラーメン=拉麵、うどん=烏龍麵、そば=蕎麥麵、スパゲ/スパゲッティ=義大利麵、ミートソース=肉醬、ピザ=披薩、カレー=咖哩、丼=丼飯、寿司/鮨=壽司、にぎり=握壽司、刺身=生魚片、焼肉=烤肉、しゃぶしゃぶ=涮涮鍋、すき焼き=壽喜燒
+
+【飲料・酒】
+生ビール/生=生啤酒、一番搾り=麒麟一番搾生啤酒、ハイボール=威士忌蘇打、サワー=沙瓦（酸甜調酒）、チューハイ=調酒、梅酒=梅酒、日本酒/清酒=清酒、焼酎=燒酎、ワイン=葡萄酒、コカ・コーラ/コーラ=可口可樂、オレンジジュース=柳橙汁、お茶=綠茶、ウーロン茶=烏龍茶、コーヒー=咖啡、牛乳/ミルク=牛奶、お冷=冰水（免費，不列入）
+
+【零食・加工食品】
+ガーナミルク=迦納牛奶巧克力、ナッツバー=堅果棒、ピスタチオ=開心果、プリン=布丁、ヨーグルト=優格、チーズ=起司、アイス=冰淇淋、ポテトチップス=洋芋片、スイートコーン=甜玉米、パン=麵包、クッキー=餅乾
+
+【藥妝・日用品】
+シャンプー=洗髮精、リンス/コンディショナー=潤髮乳、ボディソープ=沐浴乳、歯ブラシ=牙刷、歯磨き粉=牙膏、洗顔料=洗面乳、化粧水=化妝水、乳液=乳液、日焼け止め=防曬乳、マスク=口罩、絆創膏=OK繃、胃薬=胃藥、解熱剤=退燒藥、電池=電池、傘=雨傘
+
+【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
+{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
