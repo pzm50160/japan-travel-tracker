@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-4';
+const APP_VER = '20260523-5';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2484,7 +2484,25 @@ async function handleFile(file){
   if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
   try{
     const b64=await toBase64(file);const mtype=(file.type&&file.type!=='image/heic'&&file.type!=='image/heif')?file.type:'image/jpeg';
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:2000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:'你是日本收據辨識助理。分析收據圖片，只回傳JSON不要其他文字：{"store_name_zh":"店名繁中","store_name_ja":"日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文","price":數字,"tax_rate":8或10,"quantity":數字}],"total":總金額}'}]}]})});
+    const receiptPrompt = `你是專業日本收據辨識師，精通日文食品、日用品與零售業商品知識。請仔細分析這張收據圖片的每個品項。
+
+【辨識規則】
+1. 逐字對照收據文字，切勿猜測或混淆不同品項
+2. 常見日文品項對照（僅供參考，以實際文字為準）：
+   - タマネギ/玉ねぎ = 洋蔥　ニンジン = 紅蘿蔔　キャベツ = 高麗菜　ジャガイモ = 馬鈴薯
+   - アシタバ = 明日葉（蔬菜）　ホウレンソウ = 菠菜　トマト = 番茄
+   - ガーナミルク = 迦納牛奶巧克力　ナッツバー = 堅果棒　ピスタチオ = 開心果
+   - カニカマ/カニカマイリ = 蟹肉棒　スパゲ/スパゲッティ = 義大利麵　ミートソース = 肉醬
+   - スイートコーン = 甜玉米　デラウエア = 特拉華葡萄（小串紅葡萄）
+   - ミルク/牛乳 = 牛奶　ヨーグルト = 優格　チーズ = 起司
+3. 收據格式各異，靈活辨識品名欄與金額欄（金額通常在行尾，有 ¥ 符號或數字）
+4. 品項有時前面有商品條碼編號，忽略編號只取品名
+5. 翻譯成繁體中文，貼近台灣日常用語
+6. 數量若未標示預設為 1
+
+【輸出格式】只回傳 JSON，不要任何說明文字或 markdown：
+{"store_name_zh":"店名繁中","store_name_ja":"店名日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-5-20251001',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
