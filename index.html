@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-14';
+const APP_VER = '20260523-15';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4310,7 +4310,7 @@ function getPackItems() {
 }
 
 function packStateKey() {
-  return `packChecked_${state.tripId||'default'}_${packTemp}`;
+  return `packChecked_${state.tripId||'default'}`;
 }
 function getPackState() {
   try { return JSON.parse(localStorage.getItem(packStateKey()) || '{}'); } catch(e) { return {}; }
