@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-11';
+const APP_VER = '20260523-12';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1787,6 +1787,10 @@ const fmtTWD = n => 'NT$' + Math.round(n * (state.trip?.rate || 0.206)).toLocale
 const fmtCur = n => state.currency === 'TWD' ? 'NT$' + Math.round(n).toLocaleString() : fmtJPY(n);
 // 取得台幣金額（優先用已存的 amount_twd，否則換算）
 const toTWD = e => e.amount_twd || (e.currency==='TWD' ? e.amount : Math.round(e.amount * (state.trip?.rate||0.206)));
+const toJPY = e => e.currency==='TWD' ? Math.round(e.amount / (state.trip?.rate||0.206)) : Math.round(e.amount);
+const sumJPY = exps => exps.reduce((a,e)=>a+toJPY(e),0);
+const sumTWD = exps => exps.reduce((a,e)=>a+toTWD(e),0);
+const fmtDual = (jpy,twd) => `¥${Math.round(jpy).toLocaleString()} ／ NT$${Math.round(twd).toLocaleString()}`;
 const memberAvatar = (m) => m.avatar_url
   ? `<img src="${m.avatar_url}" class="avatar-img" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`+`<span style="display:none">${m.emoji}</span>`
   : m.emoji;
@@ -1942,12 +1946,14 @@ function renderHome() {
   document.getElementById('dayNum').textContent = 'Day ' + day;
   document.getElementById('daySub').textContent = '共 ' + total + ' 天';
   const todayExp = state.expenses.filter(e=>e.date===today);
-  const allTotalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
-  const todayTotalTWD = todayExp.reduce((a,e)=>a+toTWD(e),0);
-  document.getElementById('todayAmount').textContent = `NT$${Math.round(todayTotalTWD).toLocaleString()}`;
-  document.getElementById('todaySub').textContent = `${todayExp.length} 筆`;
-  document.getElementById('totalAmount').textContent = `NT$${Math.round(allTotalTWD).toLocaleString()}`;
-  document.getElementById('totalSub').textContent = `共 ${state.expenses.length} 筆`;
+  const allTotalTWD = sumTWD(state.expenses);
+  const allTotalJPY = sumJPY(state.expenses);
+  const todayTotalTWD = sumTWD(todayExp);
+  const todayTotalJPY = sumJPY(todayExp);
+  document.getElementById('todayAmount').textContent = `¥${todayTotalJPY.toLocaleString()}`;
+  document.getElementById('todaySub').textContent = `NT$${Math.round(todayTotalTWD).toLocaleString()} · ${todayExp.length} 筆`;
+  document.getElementById('totalAmount').textContent = `¥${allTotalJPY.toLocaleString()}`;
+  document.getElementById('totalSub').textContent = `NT$${Math.round(allTotalTWD).toLocaleString()} · ${state.expenses.length} 筆`;
   const budget_twd = (state.trip?.budget||550000) * (state.trip?.rate||0.206);
   const pct = Math.min(100, Math.round(allTotalTWD / budget_twd * 100));
   document.getElementById('budgetPct').textContent = pct + '%';
@@ -2001,31 +2007,30 @@ function expenseHTML(e) {
 // ─── RECORDS ──────────────────────────────────────────────────────────────────
 function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
 function renderRecords() {
-  const allTotalTWD = state.expenses.reduce((a,e)=>a+toTWD(e),0);
-  document.getElementById('recTotalJPY').textContent = `NT$${Math.round(allTotalTWD).toLocaleString()}`;
-  document.getElementById('recTotalSub').textContent = `台幣總計 · ${state.expenses.length} 筆`;
+  const allTWD = sumTWD(state.expenses), allJPY = sumJPY(state.expenses);
+  document.getElementById('recTotalJPY').textContent = `¥${allJPY.toLocaleString()}`;
+  document.getElementById('recTotalSub').textContent = `NT$${Math.round(allTWD).toLocaleString()} · ${state.expenses.length} 筆`;
   const cont = document.getElementById('recordsList');
   if (!state.expenses.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>還沒有記錄</div></div>'; return; }
   const sorted = [...state.expenses].sort((a,b)=>b.date.localeCompare(a.date));
   const days = ['日','一','二','三','四','五','六'];
+  const grpHdr = (label, exps) => `<div class="date-header"><span class="date-label">${label}</span><span class="date-total">${fmtDual(sumJPY(exps),sumTWD(exps))}</span></div>`;
   if (recTab==='date') {
     const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
     cont.innerHTML = Object.entries(byDate).map(([date,exps])=>{
-      const d=new Date(date+'T00:00:00'); const sum=exps.reduce((a,e)=>a+toTWD(e),0);
-      return '<div class="date-group"><div class="date-header"><span class="date-label">'+date+'（'+days[d.getDay()]+'）</span><span class="date-total">NT$'+Math.round(sum).toLocaleString()+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+      const d=new Date(date+'T00:00:00');
+      return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
-    cont.innerHTML = Object.entries(byCat).sort((a,b)=>b[1].reduce((s,e)=>s+toTWD(e),0)-a[1].reduce((s,e)=>s+toTWD(e),0)).map(([cat,exps])=>{
-      const sum=exps.reduce((a,e)=>a+toTWD(e),0);
-      return '<div class="date-group"><div class="date-header"><span class="date-label">'+cat+'</span><span class="date-total">NT$'+Math.round(sum).toLocaleString()+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+    cont.innerHTML = Object.entries(byCat).sort((a,b)=>sumTWD(b[1])-sumTWD(a[1])).map(([cat,exps])=>{
+      return `<div class="date-group">${grpHdr(cat,exps)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   } else {
     cont.innerHTML = state.members.map(m=>{
       const exps=sorted.filter(e=>e.payer_id===m.id);
       if(!exps.length)return'';
-      const sum=exps.reduce((a,e)=>a+toTWD(e),0);
-      return '<div class="date-group"><div class="date-header"><span class="date-label">'+m.emoji+' '+m.name+'（付款）</span><span class="date-total">NT$'+Math.round(sum).toLocaleString()+'</span></div>'+exps.map(expenseHTML).join('')+'</div>';
+      return `<div class="date-group">${grpHdr(m.emoji+' '+m.name+'（付款）',exps)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   }
 }
@@ -2040,8 +2045,9 @@ function renderSplit() {
     const cls=bal>0.5?'pos':bal<-0.5?'neg':'zero';
     const label=bal>0.5?'可收回':bal<-0.5?'需付出':'已結清';
     const paid=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+toTWD(e),0);
+    const paidJPY=state.expenses.filter(e=>e.payer_id===m.id).reduce((a,e)=>a+toJPY(e),0);
     const owed=state.expenses.reduce((a,e)=>{const sh=getShares(e);return a+(sh[m.id]||0);},0);
-    return '<div class="member-balance-row"><div class="mb-avatar">'+memberAvatar(m)+'</div><div class="mb-info"><div class="mb-name">'+m.name+'</div><div class="mb-detail">付出 NT$'+Math.round(paid).toLocaleString()+' · 應付 NT$'+Math.round(owed).toLocaleString()+'</div></div><div style="text-align:right"><div class="mb-balance '+cls+'">'+(bal>=0?'+':'')+'NT$'+Math.round(Math.abs(bal)).toLocaleString()+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+label+'</div></div></div>';
+    return '<div class="member-balance-row"><div class="mb-avatar">'+memberAvatar(m)+'</div><div class="mb-info"><div class="mb-name">'+m.name+'</div><div class="mb-detail">付出 ¥'+paidJPY.toLocaleString()+' (NT$'+Math.round(paid).toLocaleString()+')</div></div><div style="text-align:right"><div class="mb-balance '+cls+'">'+(bal>=0?'+':'')+'NT$'+Math.round(Math.abs(bal)).toLocaleString()+'</div><div style="font-size:10px;color:var(--text3);margin-top:2px">'+label+'</div></div></div>';
   }).join('');
   const bw = document.getElementById('splitBalances'); bw.className='split-summary'; bw.innerHTML=balHtml;
   document.getElementById('settleList').innerHTML = !settlements.length ?
@@ -2074,7 +2080,7 @@ function renderSplit() {
         <span style="font-size:11px;color:var(--text2)">${partExps.length} 筆</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
-        <div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace">NT$${Math.round(paid).toLocaleString()}</div></div>
+        <div style="padding:9px 11px;text-align:center;border-right:1px solid var(--border)"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">實際付出</div><div style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace">¥${sumJPY(state.expenses.filter(e=>e.payer_id===m.id)).toLocaleString()}</div><div style="font-size:10px;color:var(--text3)">NT$${Math.round(paid).toLocaleString()}</div></div>
         <div style="padding:9px 11px;text-align:center"><div style="font-size:10px;color:var(--text2);margin-bottom:2px">應分攤</div><div style="font-size:12px;font-weight:700;font-family:'DM Mono',monospace">NT$${Math.round(owed).toLocaleString()}</div></div>
       </div>
       ${rows?`<div style="max-height:220px;overflow-y:auto">${rows}</div>`:''}
@@ -2110,7 +2116,7 @@ function renderPayerStats(){
         <div style="flex:1;min-width:0">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
             <span style="font-size:13px;font-weight:600">${m.name}</span>
-            <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:700">NT$${Math.round(paid).toLocaleString()}</span>
+            <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:700">¥${myExps.reduce((a,e)=>a+toJPY(e),0).toLocaleString()}<span style="font-size:10px;font-weight:400;color:var(--text2)"> / NT$${Math.round(paid).toLocaleString()}</span></span>
           </div>
           <div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:var(--orange);border-radius:3px;transition:width .4s"></div>
@@ -2124,8 +2130,8 @@ function renderPayerStats(){
   document.getElementById('payerStatsList').innerHTML = rows || '<div style="text-align:center;color:var(--text3);padding:16px;font-size:12px">尚無消費記錄</div>';
 }
 function renderTrend(){const byDate={};state.expenses.forEach(e=>{byDate[e.date]=(byDate[e.date]||0)+toTWD(e);});const dates=Object.keys(byDate).sort();const ctx=document.getElementById('trendChart').getContext('2d');if(charts.trend)charts.trend.destroy();charts.trend=new Chart(ctx,{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'NT$',data:dates.map(d=>byDate[d]),borderColor:'#E8682A',backgroundColor:'rgba(232,104,42,0.08)',tension:0.4,fill:true,pointBackgroundColor:'#E8682A',pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#A09890'}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{font:{size:10},color:'#A09890',callback:v=>'NT$'+v.toLocaleString()}}}}});}
-function renderDonut(cid,lid,keys,colors,field){const totals={};state.expenses.forEach(e=>{totals[e[field]]=(totals[e[field]]||0)+toTWD(e);});const total=Object.values(totals).reduce((a,b)=>a+b,0)||1;const ctx=document.getElementById(cid).getContext('2d');if(cid==='catChart'&&charts.cat)charts.cat.destroy();if(cid==='payChart'&&charts.pay)charts.pay.destroy();const ch=new Chart(ctx,{type:'doughnut',data:{labels:keys,datasets:[{data:keys.map(k=>totals[k]||0),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});if(cid==='catChart')charts.cat=ch;else charts.pay=ch;document.getElementById(lid).innerHTML=keys.map((k,i)=>{const v=totals[k]||0;if(!v)return'';return'<div class="legend-row"><div class="legend-left"><div class="legend-dot" style="background:'+colors[i]+'"></div><span class="legend-label">'+k+'</span></div><div class="legend-right"><span class="legend-pct">'+Math.round(v/total*100)+'%</span><span class="legend-val">NT$'+Math.round(v).toLocaleString()+'</span></div></div>';}).join('');}
-function renderTop10(){const sorted=[...state.expenses].map(e=>({...e,_twd:toTWD(e)})).sort((a,b)=>b._twd-a._twd).slice(0,10);const max=sorted[0]?._twd||1;document.getElementById('top10List').innerHTML=sorted.map((e,i)=>'<div class="top10-row"><span class="top10-rank '+(i<3?'top3':'')+'">'+(i+1)+'</span><div class="top10-bar-wrap"><div class="top10-name">'+e.name+(e.store?' · '+e.store:'')+'</div><div class="top10-bar"><div class="top10-bar-fill" style="width:'+Math.round(e._twd/max*100)+'%"></div></div></div><span class="top10-amt">NT$'+Math.round(e._twd).toLocaleString()+'</span></div>').join('');}
+function renderDonut(cid,lid,keys,colors,field){const totals={};state.expenses.forEach(e=>{totals[e[field]]=(totals[e[field]]||0)+toTWD(e);});const total=Object.values(totals).reduce((a,b)=>a+b,0)||1;const ctx=document.getElementById(cid).getContext('2d');if(cid==='catChart'&&charts.cat)charts.cat.destroy();if(cid==='payChart'&&charts.pay)charts.pay.destroy();const ch=new Chart(ctx,{type:'doughnut',data:{labels:keys,datasets:[{data:keys.map(k=>totals[k]||0),backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false}}}});if(cid==='catChart')charts.cat=ch;else charts.pay=ch;const jpyTotals={};state.expenses.forEach(e=>{jpyTotals[e[field]]=(jpyTotals[e[field]]||0)+toJPY(e);});document.getElementById(lid).innerHTML=keys.map((k,i)=>{const v=totals[k]||0;const vj=jpyTotals[k]||0;if(!v)return'';return'<div class="legend-row"><div class="legend-left"><div class="legend-dot" style="background:'+colors[i]+'"></div><span class="legend-label">'+k+'</span></div><div class="legend-right"><span class="legend-pct">'+Math.round(v/total*100)+'%</span><span class="legend-val" style="text-align:right"><span style="display:block">¥'+vj.toLocaleString()+'</span><span style="display:block;font-size:10px;color:var(--text2)">NT$'+Math.round(v).toLocaleString()+'</span></span></div></div>';}).join('');}
+function renderTop10(){const sorted=[...state.expenses].map(e=>({...e,_twd:toTWD(e),_jpy:toJPY(e)})).sort((a,b)=>b._twd-a._twd).slice(0,10);const max=sorted[0]?._twd||1;document.getElementById('top10List').innerHTML=sorted.map((e,i)=>'<div class="top10-row"><span class="top10-rank '+(i<3?'top3':'')+'">'+(i+1)+'</span><div class="top10-bar-wrap"><div class="top10-name">'+e.name+(e.store?' · '+e.store:'')+'</div><div class="top10-bar"><div class="top10-bar-fill" style="width:'+Math.round(e._twd/max*100)+'%"></div></div></div><span class="top10-amt" style="text-align:right"><span style="display:block">¥'+e._jpy.toLocaleString()+'</span><span style="display:block;font-size:10px;color:var(--text2)">NT$'+Math.round(e._twd).toLocaleString()+'</span></span></div>').join('');}
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 function renderSettings() {
