@@ -922,7 +922,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260521-7';
+const APP_VER = '20260523-1';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2787,15 +2787,6 @@ async function renderMemoir() {
     }
   } catch(e) { /* 牌局資料異常時不影響回憶錄 */ }
 
-  // 封存 / 解封
-  html += `<div class="card" style="margin-top:4px">
-    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${isArchived?'📦 旅程已封存':'📦 封存旅程'}</div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">${isArchived?'旅程已封存，記錄永久保留。可解除封存繼續記帳。':'封存後旅程進入唯讀模式，記錄永久保留不會消失。'}</div>
-    <button class="${isArchived?'btn-cancel':'btn-save'}" style="width:100%;padding:10px;font-size:13px;border-radius:var(--radius-sm)" onclick="${isArchived?'unarchiveTrip()':'archiveTrip()'}">
-      ${isArchived?'🔓 解除封存':'📦 封存此旅程'}
-    </button>
-  </div>`;
-
   // 匯出
   html += `<div class="card" style="margin-top:4px">
     <div style="font-size:13px;font-weight:600;margin-bottom:10px">匯出 & 分享</div>
@@ -2826,6 +2817,15 @@ async function renderMemoir() {
         <span style="font-size:10px;color:var(--text2)">下載後貼到任何 AI 生成回憶錄</span>
       </button>
     </div>
+  </div>`;
+
+  // 封存 / 解封（置底）
+  html += `<div class="card" style="margin-top:4px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${isArchived?'📦 旅程已封存':'📦 封存旅程'}</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">${isArchived?'旅程已封存，記錄永久保留。可解除封存繼續記帳。':'封存後旅程進入唯讀模式，記錄永久保留不會消失。'}</div>
+    <button class="${isArchived?'btn-cancel':'btn-save'}" style="width:100%;padding:10px;font-size:13px;border-radius:var(--radius-sm)" onclick="${isArchived?'unarchiveTrip()':'archiveTrip()'}">
+      ${isArchived?'🔓 解除封存':'📦 封存此旅程'}
+    </button>
   </div>`;
 
   cont.innerHTML = html;
