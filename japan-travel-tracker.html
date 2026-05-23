@@ -924,7 +924,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-6';
+const APP_VER = '20260523-7';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2502,7 +2502,7 @@ async function handleFile(file){
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown：
 {"store_name_zh":"店名繁中","store_name_ja":"店名日文","date":"YYYY-MM-DD","items":[{"name_zh":"品項繁中","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-3-5-sonnet-20241022',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
