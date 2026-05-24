@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260523-15';
+const APP_VER = '20260523-16';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2531,6 +2531,7 @@ async function saveExpense() {
 function handleDrop(e){e.preventDefault();document.getElementById('scanArea').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleFile(f);}
 async function handleFile(file){
   if(!file)return;
+  pendingReceiptFile=file;
   const area=document.getElementById('scanArea'),result=document.getElementById('scanResult');
   area.innerHTML='<img src="'+URL.createObjectURL(file)+'" class="preview-img">';
   result.innerHTML='<div class="loading-bar"><div class="loading-text"><span class="btn-spinner"></span>AI 正在辨識收據...</div></div>';
@@ -2582,23 +2583,47 @@ async function handleFile(file){
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
 }
 function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
-let pendingReceipt=null;
+let pendingReceipt=null, pendingReceiptFile=null;
 function showReceiptResult(data){
   pendingReceipt=data;
+  const defPayer=state.myMemberId||state.members[0]?.id;
+  data.items.forEach(it=>{ if(!it.payer_id) it.payer_id=defPayer; });
   const validCats=['餐飲','超市','交通','住宿','購物','門票','藥品','其他'];
   const cat=validCats.includes(data.category)?data.category:'購物';
   pendingReceipt.category=cat;
   const catBtns=validCats.map(c=>`<button onclick="setPendingCat('${c}',this)" style="padding:5px 10px;border-radius:20px;border:1.5px solid ${c===cat?'var(--orange)':'var(--border)'};background:${c===cat?'var(--orange)':'none'};color:${c===cat?'#fff':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">${c}</button>`).join('');
   const total=data.total||data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  const memberAvatarHtml=(m,size=28)=>m.avatar_url
+    ?`<img src="${m.avatar_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;border:2px solid var(--orange)">`
+    :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--orange-light);border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:${size*0.55}px">${m.emoji}</div>`;
+  const itemRows=data.items.map((it,i)=>{
+    const payer=state.members.find(m=>m.id===it.payer_id)||state.members[0];
+    const payerHtml=payer?memberAvatarHtml(payer):'👤';
+    return `<div class="result-item" style="align-items:center">
+      <div class="item-num">${i+1}</div>
+      <div class="item-info"><div class="item-name">${it.name_zh}</div><div class="item-sub">${it.name_ja} · ${it.quantity||1}x ¥${it.price}</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div onclick="cycleItemPayer(${i})" style="cursor:pointer;flex-shrink:0" title="點擊切換付款人">${payerHtml}</div>
+        <div class="item-price">¥${((it.quantity||1)*it.price).toLocaleString()}</div>
+      </div>
+    </div>`;
+  }).join('');
   document.getElementById('scanResult').innerHTML=`<div class="result-card">
     <div class="result-header"><div><div class="store-name">${data.store_name_zh}</div><div class="store-original">${data.store_name_ja}</div></div><div class="result-date">${data.date}</div></div>
     <div style="margin:10px 0 6px;font-size:11px;font-weight:600;color:var(--text2)">分類</div>
     <div id="receiptCatBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${catBtns}</div>
-    <div class="items-header"><span class="items-title">購買明細</span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
-    ${data.items.map((it,i)=>`<div class="result-item"><div class="item-num">${i+1}</div><div class="item-info"><div class="item-name">${it.name_zh}</div><div class="item-sub">${it.name_ja} · ${it.quantity||1}x ¥${it.price}</div></div><div class="item-price">¥${((it.quantity||1)*it.price).toLocaleString()}</div></div>`).join('')}
+    <div class="items-header"><span class="items-title">購買明細 <span style="font-size:10px;color:var(--text2);font-weight:400">點頭像換付款人</span></span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
+    ${itemRows}
     <button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（整張收據合計 ¥${total.toLocaleString()}）</button>
     <div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div>
   </div>`;
+}
+function cycleItemPayer(idx){
+  if(!pendingReceipt||!state.members.length)return;
+  const it=pendingReceipt.items[idx];
+  const curIdx=state.members.findIndex(m=>m.id===it.payer_id);
+  it.payer_id=state.members[(curIdx+1)%state.members.length].id;
+  showReceiptResult(pendingReceipt);
 }
 function setPendingCat(cat,btn){
   if(!pendingReceipt)return;
@@ -2613,14 +2638,31 @@ function setPendingCat(cat,btn){
 function addItemToReceipt(){if(!pendingReceipt)return;const name=prompt('品項名稱：');if(!name)return;const price=parseInt(prompt('金額（日圓）：')||0);if(!price)return;pendingReceipt.items.push({name_zh:name,name_ja:name,price,quantity:1,tax_rate:10});showReceiptResult(pendingReceipt);}
 async function saveReceiptExpenses(){
   if(!pendingReceipt||!pendingReceipt.items.length)return;
-  const payerId=state.myMemberId||state.members[0]?.id;
+  const btn=document.querySelector('.confirm-btn');
+  if(btn){btn.disabled=true;btn.textContent='儲存中...';}
   const defPart=state.members.reduce((a,m)=>({...a,[m.id]:true}),{});
-  const total=pendingReceipt.total||pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
-  const notes=pendingReceipt.items.map(it=>`${it.name_zh} ¥${((it.quantity||1)*it.price).toLocaleString()}${(it.quantity||1)>1?' x'+(it.quantity||1):''}`).join('\n');
-  const single={id:'exp_'+Date.now(),name:pendingReceipt.store_name_zh||(pendingReceipt.items[0]?.name_zh||'收據'),amount:total,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:'現金',store:pendingReceipt.store_name_zh,notes,payer_id:payerId,split_mode:'equal',participants:{...defPart},trip_id:state.tripId};
-  await sb.from('expenses').insert(single);
+  const defPayer=state.myMemberId||state.members[0]?.id;
+  // 上傳收據照片
+  let photoUrl=null;
+  if(pendingReceiptFile){
+    try{ photoUrl=await uploadToStorage(pendingReceiptFile,'receipts'); }catch(e){}
+  }
+  // 依付款人分組
+  const groups={};
+  pendingReceipt.items.forEach(it=>{
+    const pid=it.payer_id||defPayer;
+    if(!groups[pid])groups[pid]=[];
+    groups[pid].push(it);
+  });
+  const now=Date.now();
+  const exps=Object.entries(groups).map(([pid,items],idx)=>{
+    const amt=items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+    const notes=items.map(it=>`${it.name_zh} ¥${((it.quantity||1)*it.price).toLocaleString()}${(it.quantity||1)>1?' x'+(it.quantity||1):''}`).join('\n');
+    return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:pid,split_mode:'equal',participants:{...defPart},trip_id:state.tripId};
+  });
+  await sb.from('expenses').insert(exps);
   await loadAll();
-  pendingReceipt=null;
+  pendingReceipt=null; pendingReceiptFile=null;
   document.getElementById('scanArea').innerHTML='<div class="scan-icon">📷</div><div class="scan-title">點擊上傳收據</div><div class="scan-sub">支援 JPG、PNG</div>';
   document.getElementById('scanArea').onclick=()=>document.getElementById('fileInput').click();
   document.getElementById('scanResult').innerHTML='';
@@ -4355,7 +4397,11 @@ function removeCustomPackItem(name) {
 
 function showAddPackItem() {
   const modal = document.getElementById('addPackModal');
-  if (modal) { modal.style.display = 'flex'; return; }
+  if (modal) {
+    document.getElementById('newPackEmoji').value = '';
+    document.getElementById('newPackName').value = '';
+    modal.style.display = 'flex'; return;
+  }
   const div = document.createElement('div');
   div.id = 'addPackModal';
   div.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:998;display:flex;align-items:flex-end;justify-content:center';
