@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260524-01';
+const APP_VER = '20260524-02';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2575,11 +2575,33 @@ async function handleFile(file){
 - 藥品：藥妝店、藥局
 - 其他：無法歸類者
 
+【price 欄位規則 - 非常重要】
+- price 永遠填「單品單價」，不是行小計
+- 例：「2個 ¥200」→ price:100, quantity:2（不是 price:200, quantity:2）
+- 例：「1個 ¥350」→ price:350, quantity:1
+- 驗算：所有 price×quantity 的總和應等於 total
+
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
-{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":總金額數字}`;
+{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"total":收據上的稅後總金額數字}`;
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
-    showReceiptResult(JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim()));
+    const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
+    // 校正：若 sum(qty×price) 與 total 不符，嘗試把 price 當行小計反推單價
+    if(parsed.total && parsed.items?.length){
+      const calcTotal=parsed.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+      const diff=Math.abs(calcTotal-parsed.total);
+      if(diff>parsed.total*0.05){
+        const directTotal=parsed.items.reduce((s,it)=>s+it.price,0);
+        if(Math.abs(directTotal-parsed.total)<=parsed.total*0.05){
+          // price 是行小計，反推單價
+          parsed.items.forEach(it=>{ if((it.quantity||1)>1) it.price=Math.round(it.price/(it.quantity||1)); });
+          parsed._priceFixed=true;
+        } else {
+          parsed._totalMismatch=true;
+        }
+      }
+    }
+    showReceiptResult(parsed);
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
 }
 function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
@@ -2592,7 +2614,10 @@ function showReceiptResult(data){
   const cat=validCats.includes(data.category)?data.category:'購物';
   pendingReceipt.category=cat;
   const catBtns=validCats.map(c=>`<button onclick="setPendingCat('${c}',this)" style="padding:5px 10px;border-radius:20px;border:1.5px solid ${c===cat?'var(--orange)':'var(--border)'};background:${c===cat?'var(--orange)':'none'};color:${c===cat?'#fff':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">${c}</button>`).join('');
-  const total=data.total||data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  const calcSum=data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  const total=data.total||calcSum;
+  // 計算是否與收據總額吻合
+  const totalMatch=!data.total||Math.abs(calcSum-data.total)<=data.total*0.05;
   const memberAvatarHtml=(m,size=28)=>m.avatar_url
     ?`<img src="${m.avatar_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;border:2px solid var(--orange)">`
     :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--orange-light);border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:${size*0.55}px">${m.emoji}</div>`;
@@ -2614,7 +2639,10 @@ function showReceiptResult(data){
     <div id="receiptCatBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${catBtns}</div>
     <div class="items-header"><span class="items-title">購買明細 <span style="font-size:10px;color:var(--text2);font-weight:400">點頭像換付款人</span></span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
     ${itemRows}
-    <button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（整張收據合計 ¥${total.toLocaleString()}）</button>
+    ${data._priceFixed?'<div style="padding:7px 11px;margin:6px 0;background:#FFF9E6;border:1.5px solid #F59E0B;border-radius:8px;font-size:11px;color:#92400E">⚠️ 偵測到金額已自動校正（API 回傳行小計，已換算為單價）</div>':''}
+    ${data._totalMismatch?`<div style="padding:7px 11px;margin:6px 0;background:#FEF2F2;border:1.5px solid #EF4444;border-radius:8px;font-size:11px;color:#991B1B">⚠️ 品項合計 ¥${calcSum.toLocaleString()} 與收據總額 ¥${data.total.toLocaleString()} 不符，請手動確認</div>`:''}
+    ${!totalMatch&&!data._priceFixed&&!data._totalMismatch?`<div style="padding:7px 11px;margin:6px 0;background:#FEF2F2;border:1.5px solid #EF4444;border-radius:8px;font-size:11px;color:#991B1B">⚠️ 品項合計 ¥${calcSum.toLocaleString()} 與收據總額 ¥${data.total.toLocaleString()} 不符，請手動確認</div>`:''}
+    <button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（品項合計 ¥${calcSum.toLocaleString()}${data.total&&totalMatch?' ✓ 吻合收據':data.total?' ／ 收據 ¥'+data.total.toLocaleString():''}）</button>
     <div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div>
   </div>`;
 }
