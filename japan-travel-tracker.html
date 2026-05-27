@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260527-01';
+const APP_VER = '20260527-02';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2582,9 +2582,12 @@ async function handleFile(file){
 - 内税：品項金額已含稅，合計欄旁標示「内消費税等」或「税込」→ tax_included=true
   - price 填含稅單價（如收據上標示的價格），驗算：sum(price×qty) = total（合計）
 
-【price 欄位規則】
-- price 永遠填收據上「實際列出的單品單價」，不是行小計
-- 例：「2個 ¥200」→ price:100, quantity:2（不是 price:200, quantity:2）
+【price 欄位規則 - 最重要】
+- price 永遠填「單品單價」，不是行小計（合計金額÷數量）
+- 「単450× 2個 ¥900」→ price:450, quantity:2（单価450，数量2，合計900）
+- 「2個 ¥200」→ price:100, quantity:2（単価100，合計200）
+- 「¥300」（數量=1）→ price:300, quantity:1
+- 確認：price × quantity = 該行的行小計金額
 
 【金額欄位說明】
 - tax_included = true（内税，稅已含在price裡）或 false（外税，稅另計）
@@ -2598,25 +2601,32 @@ async function handleFile(file){
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
-    // 校正：若 sum(qty×price) 與 total 不符，嘗試把 price 當行小計反推單價
+    // 校正：若 sum(qty×price) 與基準金額不符，精準找出哪幾個品項的 price 是行小計
     if(parsed.items?.length){
       const calcSum=parsed.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
-      // 内税：品項已含稅，跟 total 比；外税：跟 subtotal（小計）比
       const taxIncluded=parsed.tax_included===true;
       const refAmt=taxIncluded?(parsed.total||calcSum):(parsed.subtotal||parsed.total||calcSum);
-      if(refAmt){
-        const diff=Math.abs(calcSum-refAmt);
-        if(diff>Math.max(refAmt*0.05,5)){
-          // 嘗試把 price 當行小計反推單價
-          const directSum=parsed.items.reduce((s,it)=>s+it.price,0);
-          if(Math.abs(directSum-refAmt)<=Math.max(refAmt*0.05,5)){
-            parsed.items.forEach(it=>{ if((it.quantity||1)>1) it.price=Math.round(it.price/(it.quantity||1)); });
-            parsed._priceFixed=true;
-          } else {
-            parsed._totalMismatch=true;
-            parsed._calcSum=calcSum; parsed._refAmt=refAmt;
+      if(refAmt && calcSum > refAmt + Math.max(refAmt*0.01,2)){
+        const delta=calcSum-refAmt; // 超出的金額
+        const multiItems=parsed.items.filter(it=>(it.quantity||1)>1);
+        let fixed=false;
+        // Step 1: 逐項檢查 - 哪個品項的「超出貢獻 = price*(qty-1)」等於 delta
+        for(const it of multiItems){
+          const excess=it.price*((it.quantity||1)-1);
+          if(Math.abs(excess-delta)<=Math.max(delta*0.03,3)){
+            it.price=Math.round(it.price/(it.quantity||1));
+            parsed._priceFixed=true; fixed=true; break;
           }
         }
+        // Step 2: 若 Step1 失敗，嘗試全部 qty>1 品項都是行小計（directSum ≈ refAmt，嚴格 2% 容差）
+        if(!fixed){
+          const directSum=parsed.items.reduce((s,it)=>s+it.price,0);
+          if(Math.abs(directSum-refAmt)<=Math.max(refAmt*0.02,3)){
+            parsed.items.forEach(it=>{ if((it.quantity||1)>1) it.price=Math.round(it.price/(it.quantity||1)); });
+            parsed._priceFixed=true; fixed=true;
+          }
+        }
+        if(!fixed){ parsed._totalMismatch=true; parsed._calcSum=calcSum; parsed._refAmt=refAmt; }
       }
     }
     showReceiptResult(parsed);
