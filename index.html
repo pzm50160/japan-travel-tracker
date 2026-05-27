@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260527-03';
+const APP_VER = '20260527-04';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2608,8 +2608,17 @@ async function handleFile(file){
 - total = 合計（實際付款金額）
 - 驗算：sum(price×qty) - discount + tax(外税時) = total
 
+【付款方式辨識】
+掃描收據下方的付款欄位，判斷付款方式填入 payment：
+- "現金" → payment:"現金"（有「現金お預り」「お釣り」等字樣）
+- "信用卡" → payment:"信用卡"（クレジット、VISA、Master、JCB、AMEX、CCTクレジット等）
+- "PayPay" → payment:"PayPay"
+- "Suica" → payment:"Suica"（Suica、交通系IC、ICOCA等）
+- "iD" → payment:"iD"（iD、QUICPay等電子錢包）
+- 無法判斷 → payment:"現金"（預設）
+
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
-{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
+{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
@@ -2658,7 +2667,12 @@ function showReceiptResult(data){
   const validCats=['餐飲','超市','交通','住宿','購物','門票','藥品','其他'];
   const cat=validCats.includes(data.category)?data.category:'購物';
   pendingReceipt.category=cat;
+  const validPays=['現金','信用卡','PayPay','Suica','iD'];
+  const pay=validPays.includes(data.payment)?data.payment:'現金';
+  if(!pendingReceipt.payment) pendingReceipt.payment=pay;
+  const payIcons={'現金':'💴','信用卡':'💳','PayPay':'📱','Suica':'🚆','iD':'📲'};
   const catBtns=validCats.map(c=>`<button onclick="setPendingCat('${c}',this)" style="padding:5px 10px;border-radius:20px;border:1.5px solid ${c===cat?'var(--orange)':'var(--border)'};background:${c===cat?'var(--orange)':'none'};color:${c===cat?'#fff':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">${c}</button>`).join('');
+  const payBtns=validPays.map(p=>`<button onclick="setPendingPay('${p}',this)" style="padding:5px 10px;border-radius:20px;border:1.5px solid ${p===pay?'var(--orange)':'var(--border)'};background:${p===pay?'var(--orange)':'none'};color:${p===pay?'#fff':'var(--text2)'};font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">${payIcons[p]||''} ${p}</button>`).join('');
   const calcSum=data.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
   const taxIncluded=data.tax_included===true;
   const tax=data.tax||0;
@@ -2691,6 +2705,8 @@ function showReceiptResult(data){
     <div class="result-header"><div><div class="store-name">${data.store_name_zh}</div><div class="store-original">${data.store_name_ja}</div></div><div class="result-date">${data.date}</div></div>
     <div style="margin:10px 0 6px;font-size:11px;font-weight:600;color:var(--text2)">分類</div>
     <div id="receiptCatBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${catBtns}</div>
+    <div style="margin:8px 0 6px;font-size:11px;font-weight:600;color:var(--text2)">付款方式</div>
+    <div id="receiptPayBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${payBtns}</div>
     <div class="items-header"><span class="items-title">購買明細 <span style="font-size:10px;color:var(--text2);font-weight:400">點頭像換付款人</span></span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
     ${itemRows}
     ${data._priceFixed?'<div style="padding:7px 11px;margin:6px 0;background:#FFF9E6;border:1.5px solid #F59E0B;border-radius:8px;font-size:11px;color:#92400E">⚠️ 偵測到金額已自動校正（行小計已換算為單價）</div>':''}
@@ -2721,6 +2737,16 @@ function setPendingCat(cat,btn){
   if(!pendingReceipt)return;
   pendingReceipt.category=cat;
   document.querySelectorAll('#receiptCatBtns button').forEach(b=>{
+    const active=b===btn;
+    b.style.borderColor=active?'var(--orange)':'var(--border)';
+    b.style.background=active?'var(--orange)':'none';
+    b.style.color=active?'#fff':'var(--text2)';
+  });
+}
+function setPendingPay(pay,btn){
+  if(!pendingReceipt)return;
+  pendingReceipt.payment=pay;
+  document.querySelectorAll('#receiptPayBtns button').forEach(b=>{
     const active=b===btn;
     b.style.borderColor=active?'var(--orange)':'var(--border)';
     b.style.background=active?'var(--orange)':'none';
@@ -2767,7 +2793,7 @@ async function saveReceiptExpenses(){
     const amt=groupAmts[idx];
     const taxNote=pendingReceipt.tax&&entries.length===1?`\n含稅合計 ¥${receiptTotal.toLocaleString()}（稅 ¥${pendingReceipt.tax.toLocaleString()}${pendingReceipt.discount?' 折扣 −¥'+pendingReceipt.discount.toLocaleString():''}）`:'';
     const notes=items.map(it=>`${it.name_zh} ¥${((it.quantity||1)*it.price).toLocaleString()}${(it.quantity||1)>1?' x'+(it.quantity||1):''}`).join('\n')+taxNote;
-    return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:pid,split_mode:'equal',participants:{...defPart},trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
+    return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:pid,split_mode:'equal',participants:{...defPart},trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
   });
   await sb.from('expenses').insert(exps);
   await loadAll();
