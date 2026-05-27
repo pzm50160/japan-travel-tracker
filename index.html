@@ -938,7 +938,7 @@ window.addEventListener('unhandledrejection', e => {
 });
 
 // ─── SUPABASE SETUP ──────────────────────────────────────────────────────────
-const APP_VER = '20260527-02';
+const APP_VER = '20260527-03';
 const SUPABASE_URL = 'https://lkojnzprqqdmqhzzlqtb.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_nxikV7UaOTeemwN5T4TXRQ_rFx73PMc';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2578,23 +2578,35 @@ async function handleFile(file){
 【稅制判斷 - 非常重要】
 先判斷收據是「外税」還是「内税」：
 - 外税：品項金額為稅前，稅金另外列出後加到合計（如 外税8% ¥258）→ tax_included=false
-  - price 填稅前單價，驗算：sum(price×qty) = subtotal（小計）
-- 内税：品項金額已含稅，合計欄旁標示「内消費税等」或「税込」→ tax_included=true
-  - price 填含稅單價（如收據上標示的價格），驗算：sum(price×qty) = total（合計）
+  - price 填稅前單價，驗算：sum(price×qty) - discount = subtotal（小計）
+- 内税：品項金額已含稅，標示「内消費税等」「税込」或免税（Tax Free, 消費税等¥0）→ tax_included=true
+  - price 填含稅單價（如收據上標示的價格），驗算：sum(price×qty) - discount = total（合計）
 
 【price 欄位規則 - 最重要】
 - price 永遠填「單品單價」，不是行小計（合計金額÷數量）
-- 「単450× 2個 ¥900」→ price:450, quantity:2（单価450，数量2，合計900）
-- 「2個 ¥200」→ price:100, quantity:2（単価100，合計200）
+- 「単450× 2個 ¥900」→ price:450, quantity:2（単価450，数量2，行合計900）
+- 「2コ×単299 ¥598」→ price:299, quantity:2
 - 「¥300」（數量=1）→ price:300, quantity:1
-- 確認：price × quantity = 該行的行小計金額
+- 確認：price × quantity = 該行的行合計金額
+
+【折扣/值引き - 收據下方必須辨識】
+務必掃描收據下半段，找出所有折扣並加總到 discount：
+- クーポン割引（優惠券）：如「クーポン割引 5% -¥597」
+- まとめ値引き（整批折扣）：如「Cスニーカーゴム -¥198」
+- ポイント割引、サービス料割引、会員割引 等
+- 所有 -¥XX 形式的折扣金額全部加總後填入 discount
+
+【免税（Tax Free）辨識】
+- 若收據顯示「免税」「Tax Free」「(消費税等 ¥0)」→ tax_included=true，tax=0
+- 免税額（Tax exemption ¥XXX）是給顧客的退稅資訊，不是稅金，不要填入 tax
 
 【金額欄位說明】
-- tax_included = true（内税，稅已含在price裡）或 false（外税，稅另計）
-- subtotal = 外税時的稅前小計；内税時填 total 相同值或省略（填0亦可）
-- discount = 折扣/割引/クーポン 合計（無則填 0）
-- tax = 稅金金額（内税填内含稅額，外税填外加稅額；無則填 0）
+- tax_included = true（内税或免税）或 false（外税）
+- subtotal = 外税時稅前小計；内税/免税時省略或填 0
+- discount = 所有折扣/値引き合計（無則填 0）
+- tax = 稅金（外税填外加稅額；内税填内含稅額；免税填 0）
 - total = 合計（實際付款金額）
+- 驗算：sum(price×qty) - discount + tax(外税時) = total
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
@@ -2605,9 +2617,14 @@ async function handleFile(file){
     if(parsed.items?.length){
       const calcSum=parsed.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
       const taxIncluded=parsed.tax_included===true;
+      const discount=parsed.discount||0;
+      const tax=(!taxIncluded)?(parsed.tax||0):0; // 外税才加稅
+      // 品項合計 - 折扣 + 外税 應等於合計
       const refAmt=taxIncluded?(parsed.total||calcSum):(parsed.subtotal||parsed.total||calcSum);
-      if(refAmt && calcSum > refAmt + Math.max(refAmt*0.01,2)){
-        const delta=calcSum-refAmt; // 超出的金額
+      // 考慮折扣後的預期品項合計（= 合計 + 折扣）
+      const expectedCalcSum=refAmt+discount;
+      if(refAmt && calcSum > expectedCalcSum + Math.max(expectedCalcSum*0.01,2)){
+        const delta=calcSum-expectedCalcSum; // 扣除折扣後仍超出的金額
         const multiItems=parsed.items.filter(it=>(it.quantity||1)>1);
         let fixed=false;
         // Step 1: 逐項檢查 - 哪個品項的「超出貢獻 = price*(qty-1)」等於 delta
@@ -2618,10 +2635,10 @@ async function handleFile(file){
             parsed._priceFixed=true; fixed=true; break;
           }
         }
-        // Step 2: 若 Step1 失敗，嘗試全部 qty>1 品項都是行小計（directSum ≈ refAmt，嚴格 2% 容差）
+        // Step 2: 若 Step1 失敗，嘗試全部 qty>1 品項都是行小計
         if(!fixed){
           const directSum=parsed.items.reduce((s,it)=>s+it.price,0);
-          if(Math.abs(directSum-refAmt)<=Math.max(refAmt*0.02,3)){
+          if(Math.abs(directSum-expectedCalcSum)<=Math.max(expectedCalcSum*0.02,3)){
             parsed.items.forEach(it=>{ if((it.quantity||1)>1) it.price=Math.round(it.price/(it.quantity||1)); });
             parsed._priceFixed=true; fixed=true;
           }
@@ -2647,11 +2664,12 @@ function showReceiptResult(data){
   const tax=data.tax||0;
   const discount=data.discount||0;
   const total=data.total||calcSum;
-  // 内税：品項已含稅，小計=合計；外税：小計=品項稅前合計
+  // 内税：品項已含稅；外税：品項稅前
   const subtotal=taxIncluded?total:(data.subtotal||null);
   const refAmt=taxIncluded?total:(subtotal||total);
-  const itemsMatch=Math.abs(calcSum-refAmt)<=Math.max(refAmt*0.05,5);
-  // 驗算合計是否正確（外税：subtotal+tax-discount=total；内税：直接用total）
+  // 品項合計 - 折扣 應≈ 合計（考慮折扣後再比對）
+  const itemsMatch=Math.abs(calcSum-discount-refAmt)<=Math.max(refAmt*0.05,5);
+  // 外税：subtotal - discount + tax = total
   const calcTotal=(!taxIncluded&&subtotal)?(subtotal-discount+tax):null;
   const totalOk=!calcTotal||Math.abs(calcTotal-total)<=5;
   const memberAvatarHtml=(m,size=28)=>m.avatar_url
@@ -2679,16 +2697,16 @@ function showReceiptResult(data){
     ${data._totalMismatch?`<div style="padding:7px 11px;margin:6px 0;background:#FEF2F2;border:1.5px solid #EF4444;border-radius:8px;font-size:11px;color:#991B1B">⚠️ 品項合計 ¥${calcSum.toLocaleString()} 與${taxIncluded?'含稅合計':'小計'} ¥${refAmt.toLocaleString()} 不符，請手動確認</div>`:''}
     <div style="padding:9px 12px;margin:8px 0 4px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text2);display:flex;flex-direction:column;gap:3px">
       ${taxIncluded
-        ?`<div style="display:flex;justify-content:space-between"><span>品項合計（含稅）</span><span style="font-family:'DM Mono',monospace;color:var(--text)">¥${calcSum.toLocaleString()}</span></div>
+        ?`<div style="display:flex;justify-content:space-between"><span>品項原價合計</span><span style="font-family:'DM Mono',monospace;color:var(--text)">¥${calcSum.toLocaleString()}</span></div>
            ${tax?`<div style="display:flex;justify-content:space-between"><span>　其中含稅</span><span style="font-family:'DM Mono',monospace;color:var(--text3)">¥${tax.toLocaleString()}</span></div>`:''}
-           ${discount?`<div style="display:flex;justify-content:space-between"><span>折扣</span><span style="font-family:'DM Mono',monospace;color:var(--success)">−¥${discount.toLocaleString()}</span></div>`:''}`
+           ${discount?`<div style="display:flex;justify-content:space-between"><span>折扣／クーポン</span><span style="font-family:'DM Mono',monospace;color:var(--success)">−¥${discount.toLocaleString()}</span></div>`:''}`
         :`<div style="display:flex;justify-content:space-between"><span>品項小計（稅前）</span><span style="font-family:'DM Mono',monospace;color:var(--text)">¥${(subtotal||calcSum).toLocaleString()}</span></div>
-           ${discount?`<div style="display:flex;justify-content:space-between"><span>折扣</span><span style="font-family:'DM Mono',monospace;color:var(--success)">−¥${discount.toLocaleString()}</span></div>`:''}
+           ${discount?`<div style="display:flex;justify-content:space-between"><span>折扣／クーポン</span><span style="font-family:'DM Mono',monospace;color:var(--success)">−¥${discount.toLocaleString()}</span></div>`:''}
            ${tax?`<div style="display:flex;justify-content:space-between"><span>稅金</span><span style="font-family:'DM Mono',monospace">+¥${tax.toLocaleString()}</span></div>`:''}`
       }
       <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:4px;margin-top:2px;font-weight:700;color:var(--text)"><span>合計</span><span style="font-family:'DM Mono',monospace">¥${total.toLocaleString()} ${itemsMatch&&totalOk?'✓':'⚠️'}</span></div>
     </div>
-    <button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（合計 ¥${total.toLocaleString()}${itemsMatch?' ✓':''}${taxIncluded?' · 内税':tax?' · 外税 ¥'+tax.toLocaleString():''}）</button>
+    <button class="confirm-btn" onclick="saveReceiptExpenses()">確認儲存（合計 ¥${total.toLocaleString()}${itemsMatch?' ✓':''}${discount?' · 折扣 −¥'+discount.toLocaleString():''}${taxIncluded&&!discount?' · 免稅/内税':(!taxIncluded&&tax)?' · 外稅 ¥'+tax.toLocaleString():''}）</button>
     <div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div>
   </div>`;
 }
