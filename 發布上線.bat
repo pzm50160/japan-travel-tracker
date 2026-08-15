@@ -13,10 +13,8 @@ if errorlevel 1 goto fail
 
 git diff --cached --quiet
 if not errorlevel 1 (
-    echo 沒有任何變更，不需要發布。
-    echo.
-    pause
-    exit /b 0
+    echo 沒有新的檔案變更，檢查是否有尚未上傳的內容...
+    goto dopush
 )
 
 echo 這次的變更：
@@ -30,8 +28,22 @@ if not defined MSG set "MSG=更新"
 git commit -m "%MSG%"
 if errorlevel 1 goto fail
 
+:dopush
+git rev-list --count origin/main..HEAD > "%TEMP%\_ahead.txt" 2>nul
+set /p AHEAD=<"%TEMP%\_ahead.txt"
+del "%TEMP%\_ahead.txt" 2>nul
+if "%AHEAD%"=="0" (
+    echo.
+    echo 目前沒有任何需要上傳的內容，網站已是最新。
+    echo.
+    pause
+    exit /b 0
+)
+
 echo.
-echo 上傳中...
+echo 有 %AHEAD% 個變更待上傳，開始上傳...
+echo （第一次可能會跳出瀏覽器要你登入 GitHub）
+echo.
 git push
 if errorlevel 1 goto fail
 
