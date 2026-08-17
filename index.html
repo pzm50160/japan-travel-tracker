@@ -966,6 +966,9 @@ function dataUrlToBlob(dataUrl) {
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 // ─── 跳脫使用者輸入，避免 HTML 注入 ──────────────────────────────────────────
 // 產生唯一 ID：時間戳記保留排序性與可讀性，隨機碼避免同毫秒碰撞
+// 取得「本地時區」的今天日期（YYYY-MM-DD）
+// 不可用 toISOString()，那是 UTC —— 台灣凌晨 0~8 點會取到前一天
+const todayStr = () => new Date().toLocaleDateString('en-CA');
 function uid(prefix) {
   const r = (crypto.randomUUID ? crypto.randomUUID().slice(0,8)
                                : Math.random().toString(36).slice(2,10));
@@ -1606,8 +1609,8 @@ async function createTrip() {
     const inviteCode = genInviteCode();
     const trip = {
       id: tripId, name,
-      start_date: document.getElementById('newTripStart').value || new Date().toISOString().split('T')[0],
-      end_date: document.getElementById('newTripEnd').value || new Date().toISOString().split('T')[0],
+      start_date: document.getElementById('newTripStart').value || todayStr(),
+      end_date: document.getElementById('newTripEnd').value || todayStr(),
       budget: parseInt(document.getElementById('newTripBudget').value) || 550000,
       rate: parseFloat(document.getElementById('newTripRate').value) || 0.206,
       invite_code: inviteCode,
@@ -2046,7 +2049,7 @@ function renderHome() {
   const t = state.trip;
   renderHeroBanner();
   document.getElementById('tripTitle').textContent = t.name;
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = todayStr();
   const start = new Date(t.start_date), end = new Date(t.end_date);
   const total = Math.round((end-start)/86400000) + 1;
   const todayDate = new Date(today);
@@ -2382,7 +2385,7 @@ function openAddModal() {
   document.getElementById('modalTitle').textContent = '新增花費';
   document.getElementById('mName').value = '';
   document.getElementById('mAmt').value = '';
-  document.getElementById('mDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('mDate').value = todayStr();
   document.getElementById('mStore').value = '';
   document.getElementById('mNotes').value = '';
   document.getElementById('amtConvert').textContent = '';
@@ -3977,7 +3980,7 @@ async function newGameSession() {
   const idx = gData.sessions.length + 1;
   openGameSessionNameModal('🃏 新場次名稱', `第 ${idx} 場`, async (name) => {
     const finalName = name || `第 ${idx} 場`;
-    const sess = { id: 'sess_' + Date.now(), name: finalName, date: new Date().toISOString().split('T')[0], players: [], rounds: [] };
+    const sess = { id: 'sess_' + Date.now(), name: finalName, date: todayStr(), players: [], rounds: [] };
     gData.sessions.push(sess);
     gData.activeSessionId = sess.id;
     await saveGData();
@@ -4283,7 +4286,7 @@ async function confirmSelectedGameMembers() {
   if (!selectedGameMemberIds.size) return;
   // 沒有場次 → 自動建立第一場
   if (!gData.sessions.length) {
-    const sess = { id: 'sess_' + Date.now(), name: '第 1 場', date: new Date().toISOString().split('T')[0], players: [], rounds: [] };
+    const sess = { id: 'sess_' + Date.now(), name: '第 1 場', date: todayStr(), players: [], rounds: [] };
     gData.sessions.push(sess);
     gData.activeSessionId = sess.id;
   }
@@ -4307,7 +4310,7 @@ async function confirmAddGamePlayer() {
   if (!name) { showToast('請輸入名稱'); return; }
   // 沒有場次 → 自動建立第一場
   if (!gData.sessions.length) {
-    const s0 = { id: 'sess_' + Date.now(), name: '第 1 場', date: new Date().toISOString().split('T')[0], players: [], rounds: [] };
+    const s0 = { id: 'sess_' + Date.now(), name: '第 1 場', date: todayStr(), players: [], rounds: [] };
     gData.sessions.push(s0);
     gData.activeSessionId = s0.id;
   }
