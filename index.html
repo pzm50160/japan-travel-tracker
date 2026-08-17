@@ -403,7 +403,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);text-align:center">
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">不想建立帳號？</div>
-      <button onclick="enterGuestMode()" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);font-size:13px;color:var(--text2);cursor:pointer;font-family:inherit">訪客模式（僅限此裝置）</button>
+      <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">登入後旅程會跟著帳號走，<br>換手機也不會不見</div>
     </div>
   </div>
 </div>
@@ -1060,10 +1060,9 @@ function showAuthScreen() {
   document.getElementById('tripScreen').classList.remove('show');
 }
 
+// 訪客模式已停用：資料庫需要登入身分才能判斷你屬於哪個旅程
 function enterGuestMode() {
-  state.user = null;
-  hideAuthScreen();
-  showTripScreen();
+  showAuthError('請先登入或註冊，旅程資料需要帳號才能保護');
 }
 function hideAuthScreen() {
   document.getElementById('authScreen').classList.remove('show');
@@ -1568,24 +1567,24 @@ async function createTrip() {
       rate: parseFloat(document.getElementById('newTripRate').value) || 0.206,
       invite_code: inviteCode,
     };
-    await sb.from('trips').insert(trip);
-    await sb.from('members').insert({
+    if (!state.user) { showToast('請先登入'); showAuthScreen(); return; }
+    const { error: tripErr } = await sb.from('trips').insert(trip);
+    if (tripErr) throw new Error(tripErr.message);
+    // 先認領旅程，之後才有權限寫入成員（資料列權限依 user_trips 判斷）
+    const { error: utErr } = await sb.from('user_trips')
+      .upsert({ user_id: state.user.id, trip_id: tripId, member_id: memberId, role: 'owner' });
+    if (utErr) throw new Error(utErr.message);
+    const { error: memErr } = await sb.from('members').insert({
       id: memberId, name: memberName,
       emoji: createSelEmoji,
       avatar_url: createAvatarDataUrl ? await uploadToStorage(dataUrlToBlob(createAvatarDataUrl), 'avatars') : null,
       trip_id: tripId,
     });
+    if (memErr) throw new Error(memErr.message);
     localStorage.setItem('jpTripId', tripId);
     localStorage.setItem('jpMemberId', memberId);
     localStorage.setItem('tripCurrency_'+tripId, _newTripCurrency);
     state.primaryCurrency = _newTripCurrency;
-    if (state.user) {
-      await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: tripId, member_id: memberId, role: 'owner' });
-    } else {
-      const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-      myTrips.push({ id: tripId, memberId });
-      localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
-    }
     state.tripId = tripId; state.myMemberId = memberId; state.trip = trip;
     await loadAll();
     showApp();
@@ -1595,6 +1594,17 @@ async function createTrip() {
 }
 
 let pendingJoinTrip = null;
+let pendingJoinCode = null;
+
+// 用邀請碼取得旅程存取權，成功後回傳完整旅程資料
+async function claimTripByCode(memberId) {
+  const { error } = await sb.rpc('join_trip_by_code', { p_code: pendingJoinCode, p_member_id: memberId });
+  if (error) throw new Error(error.message);
+  // 預覽資料不含預算/匯率等欄位，取得權限後重新讀取完整內容
+  const { data: full, error: e2 } = await sb.from('trips').select('*').eq('id', pendingJoinTrip.id).single();
+  if (e2) throw new Error(e2.message);
+  return full;
+}
 
 function resetJoinForm() {
   pendingJoinTrip = null;
@@ -1620,12 +1630,16 @@ async function lookupTrip() {
   const btn = document.getElementById('lookupTripBtn');
   btn.disabled = true; btn.textContent = '查詢中...';
   try {
-    const { data: trip } = await sb.from('trips').select('*').eq('invite_code', code).single();
-    if (!trip) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='查詢旅程 →'; return; }
-    pendingJoinTrip = trip;
-    const { data: members } = await sb.from('members').select('*').eq('trip_id', trip.id);
-    document.getElementById('joinFoundTripName').textContent = '✈️ ' + trip.name;
-    document.getElementById('existingMembersList').innerHTML = (members||[]).map(m => `
+    if (!state.user) { showToast('請先登入'); showAuthScreen(); return; }
+    // 尚未加入前無法直接讀旅程，改由後端函式驗證邀請碼後回傳預覽
+    const { data: preview, error } = await sb.rpc('preview_trip_by_code', { p_code: code });
+    if (error) throw new Error(error.message);
+    if (!preview) { showToast('找不到此邀請碼'); btn.disabled=false; btn.textContent='查詢旅程 →'; return; }
+    pendingJoinTrip = preview;
+    pendingJoinCode = code;
+    const members = preview.members || [];
+    document.getElementById('joinFoundTripName').textContent = '✈️ ' + preview.name;
+    document.getElementById('existingMembersList').innerHTML = members.map(m => `
       <div onclick="joinAsExisting('${m.id}','${m.name.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="width:38px;height:38px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;flex-shrink:0">${m.avatar_url ? `<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : m.emoji}</div>
         <div style="flex:1;font-size:14px;font-weight:500">${m.name}</div>
@@ -1639,19 +1653,16 @@ async function lookupTrip() {
 async function joinAsExisting(memberId, memberName) {
   if (!pendingJoinTrip) return;
   if (!confirm(`確定你是「${memberName}」嗎？`)) return;
-  localStorage.setItem('jpTripId', pendingJoinTrip.id);
-  localStorage.setItem('jpMemberId', memberId);
-  if (state.user) {
-    await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: pendingJoinTrip.id, member_id: memberId });
-  } else {
-    const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-    if (!myTrips.find(t => t.id === pendingJoinTrip.id)) myTrips.push({ id: pendingJoinTrip.id, memberId });
-    localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
-  }
-  state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
-  await loadAll();
-  showApp();
-  subscribeRealtime();
+  try {
+    const trip = await claimTripByCode(memberId);
+    localStorage.setItem('jpTripId', trip.id);
+    localStorage.setItem('jpMemberId', memberId);
+    state.tripId = trip.id; state.myMemberId = memberId; state.trip = trip;
+    loadTripCurrency();
+    await loadAll();
+    showApp();
+    subscribeRealtime();
+  } catch(e) { showToast('加入失敗：' + e.message); }
 }
 
 async function joinTrip() {
@@ -1662,22 +1673,19 @@ async function joinTrip() {
   btn.disabled = true; btn.textContent = '加入中...';
   try {
     const memberId = 'mb_' + Date.now();
-    await sb.from('members').insert({
+    // 先取得存取權，才有權限新增成員
+    const trip = await claimTripByCode(memberId);
+    const { error: memErr } = await sb.from('members').insert({
       id: memberId, name: memberName,
       emoji: joinSelEmoji,
       avatar_url: joinAvatarDataUrl ? await uploadToStorage(dataUrlToBlob(joinAvatarDataUrl), 'avatars') : null,
-      trip_id: pendingJoinTrip.id,
+      trip_id: trip.id,
     });
-    localStorage.setItem('jpTripId', pendingJoinTrip.id);
+    if (memErr) throw new Error(memErr.message);
+    localStorage.setItem('jpTripId', trip.id);
     localStorage.setItem('jpMemberId', memberId);
-    if (state.user) {
-      await sb.from('user_trips').upsert({ user_id: state.user.id, trip_id: pendingJoinTrip.id, member_id: memberId });
-    } else {
-      const myTrips = JSON.parse(localStorage.getItem('jpMyTrips') || '[]');
-      if (!myTrips.find(t => t.id === pendingJoinTrip.id)) myTrips.push({ id: pendingJoinTrip.id, memberId });
-      localStorage.setItem('jpMyTrips', JSON.stringify(myTrips));
-    }
-    state.tripId = pendingJoinTrip.id; state.myMemberId = memberId; state.trip = pendingJoinTrip;
+    state.tripId = trip.id; state.myMemberId = memberId; state.trip = trip;
+    loadTripCurrency();
     await loadAll();
     showApp();
     subscribeRealtime();
