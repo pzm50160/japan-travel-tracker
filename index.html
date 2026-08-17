@@ -571,8 +571,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>統計</button>
   <button class="nav-btn" onclick="goPage('pack',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>行李</button>
+  <!-- 回憶錄分頁暫時隱藏（功能保留，未使用）
   <button class="nav-btn" onclick="goPage('memoir',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>回憶錄</button>
+  -->
   <button class="nav-btn" onclick="goPage('game',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="14" height="18" rx="2"/><path d="M8 4V2M6 9h6M6 13h4"/><rect x="8" y="8" width="14" height="14" rx="2" fill="var(--surface)" stroke="currentColor"/><path d="M14 12h6M14 16h4"/></svg>牌局</button>
   <button class="nav-btn" onclick="goPage('settings',this)">
@@ -768,6 +770,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       <div id="apiStatus" style="font-size:11px;color:var(--success);margin-top:4px"></div>
     </div>
   </div>
+  <div id="archiveCard"></div>
   <div class="card">
     <button class="btn-save" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px;background:var(--bg);color:var(--text);border:1px solid var(--border)" onclick="switchTrip()">🔀 切換旅程</button>
     <button class="btn-cancel" style="width:100%;padding:9px;font-size:12px;margin-bottom:7px;color:var(--danger);border-color:var(--danger)" onclick="leaveTrip()">🚪 從帳號移除此旅程</button>
@@ -2275,6 +2278,16 @@ function renderSettings() {
            <button onclick="removeMember('${m.id}','${jsq(m.name)}')" style="background:none;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#EF4444;flex-shrink:0">移除</button>`}
     </div>`;
   }).join('');
+
+  // 封存 / 解封
+  const isArchived = t.archived;
+  document.getElementById('archiveCard').innerHTML = `<div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${isArchived?'📦 旅程已封存':'📦 封存旅程'}</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">${isArchived?'旅程已封存，記錄永久保留。可解除封存繼續記帳。':'封存後旅程進入唯讀模式，記錄永久保留不會消失。'}</div>
+    <button class="${isArchived?'btn-cancel':'btn-save'}" style="width:100%;padding:10px;font-size:13px;border-radius:var(--radius-sm)" onclick="${isArchived?'unarchiveTrip()':'archiveTrip()'}">
+      ${isArchived?'🔓 解除封存':'📦 封存此旅程'}
+    </button>
+  </div>`;
 }
 async function saveTripSetting() {
   if (!state.tripId) return;
@@ -3198,14 +3211,7 @@ async function renderMemoir() {
     </div>
   </div>`;
 
-  // 封存 / 解封（置底）
-  html += `<div class="card" style="margin-top:4px">
-    <div style="font-size:13px;font-weight:600;margin-bottom:4px">${isArchived?'📦 旅程已封存':'📦 封存旅程'}</div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">${isArchived?'旅程已封存，記錄永久保留。可解除封存繼續記帳。':'封存後旅程進入唯讀模式，記錄永久保留不會消失。'}</div>
-    <button class="${isArchived?'btn-cancel':'btn-save'}" style="width:100%;padding:10px;font-size:13px;border-radius:var(--radius-sm)" onclick="${isArchived?'unarchiveTrip()':'archiveTrip()'}">
-      ${isArchived?'🔓 解除封存':'📦 封存此旅程'}
-    </button>
-  </div>`;
+  // 封存 / 解封已移至設定頁
 
   cont.innerHTML = html;
 }
@@ -3404,13 +3410,13 @@ async function archiveTrip() {
   if (!confirm('封存後旅程進入唯讀模式，確定嗎？')) return;
   await sb.from('trips').update({ archived: true }).eq('id', state.tripId);
   state.trip.archived = true;
-  renderMemoir();
+  renderSettings();
   showToast('旅程已封存 📦');
 }
 async function unarchiveTrip() {
   await sb.from('trips').update({ archived: false }).eq('id', state.tripId);
   state.trip.archived = false;
-  renderMemoir();
+  renderSettings();
   showToast('已解除封存');
 }
 
