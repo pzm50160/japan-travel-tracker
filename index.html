@@ -978,7 +978,7 @@ const jsq = v => String(v ?? '')
   .replace(/\\/g, '\\\\')      // 反斜線
   .replace(/'/g, "\\'")        // 單引號（JS 字串）
   .replace(/"/g, '&quot;')     // 雙引號（HTML 屬性）
-  .replace(/</g, '\\x3C');     // 避免 </script>
+  .replace(/</g, '\\x3C');     // 把 < 轉成跳脫碼，避免提前結束程式區塊
 const CATS=['餐飲','超市','交通','住宿','購物','門票','藥品','其他'];
 const PAYS=['現金','信用卡','PayPay','Suica','iD'];
 const EMOJIS=['😊','😎','🧑','👩','👦','👧','🧑‍💻','👩‍🦱','🧔','👱','🙋','🎒'];
