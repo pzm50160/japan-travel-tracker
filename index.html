@@ -402,8 +402,11 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       </div>
     </div>
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border);text-align:center">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">不想建立帳號？</div>
-      <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">登入後旅程會跟著帳號走，<br>換手機也不會不見</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">被朋友邀請、不想建立帳號？</div>
+      <button id="guestBtn" onclick="enterGuestMode()" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;font-weight:500">免註冊，用邀請碼加入 →</button>
+      <div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:8px">
+        免註冊可以記帳、查看分攤，<br>但旅程只記在這台裝置，換手機就要重新用邀請碼加入
+      </div>
     </div>
   </div>
 </div>
@@ -961,6 +964,21 @@ function dataUrlToBlob(dataUrl) {
 }
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
+// ─── 跳脫使用者輸入，避免 HTML 注入 ──────────────────────────────────────────
+// 產生唯一 ID：時間戳記保留排序性與可讀性，隨機碼避免同毫秒碰撞
+function uid(prefix) {
+  const r = (crypto.randomUUID ? crypto.randomUUID().slice(0,8)
+                               : Math.random().toString(36).slice(2,10));
+  return prefix + '_' + Date.now() + '_' + r;
+}
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// 供 onclick 等屬性中的 JS 字串使用（反斜線與單引號給 JS，雙引號給屬性）
+const jsq = v => String(v ?? '')
+  .replace(/\\/g, '\\\\')      // 反斜線
+  .replace(/'/g, "\\'")        // 單引號（JS 字串）
+  .replace(/"/g, '&quot;')     // 雙引號（HTML 屬性）
+  .replace(/</g, '\\x3C');     // 避免 </script>
 const CATS=['餐飲','超市','交通','住宿','購物','門票','藥品','其他'];
 const PAYS=['現金','信用卡','PayPay','Suica','iD'];
 const EMOJIS=['😊','😎','🧑','👩','👦','👧','🧑‍💻','👩‍🦱','🧔','👱','🙋','🎒'];
@@ -1060,9 +1078,30 @@ function showAuthScreen() {
   document.getElementById('tripScreen').classList.remove('show');
 }
 
-// 訪客模式已停用：資料庫需要登入身分才能判斷你屬於哪個旅程
-function enterGuestMode() {
-  showAuthError('請先登入或註冊，旅程資料需要帳號才能保護');
+// 免註冊模式：向 Supabase 取得一個匿名身分。
+// 使用者不用填任何資料，但資料庫仍拿得到 auth.uid()，
+// 才能判斷這個人屬於哪個旅程（純訪客沒有身分，資料庫無從保護）。
+async function enterGuestMode() {
+  const btn = document.getElementById('guestBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '準備中...'; }
+  try {
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) throw new Error(error.message);
+    state.user = data.user;
+    hideAuthScreen();
+    showTripScreen();
+    showToast('已進入免註冊模式，用邀請碼加入旅程吧');
+  } catch (e) {
+    showAuthError('免註冊模式無法啟用：' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '免註冊，用邀請碼加入 →'; }
+  }
+}
+
+// 免註冊使用者之後想保留資料，可在此升級成正式帳號（沿用同一個身分，旅程不會不見）
+async function upgradeGuestAccount(email, password) {
+  const { error } = await sb.auth.updateUser({ email, password });
+  if (error) throw new Error(error.message);
 }
 function hideAuthScreen() {
   document.getElementById('authScreen').classList.remove('show');
@@ -1184,7 +1223,7 @@ async function renderMyTrips() {
       trips.map(t => {
         const info = saved.find(s => s.id === t.id);
         return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${info?.memberId||''}')">
-          <div class="trip-card-name">✈️ ${t.name}</div>
+          <div class="trip-card-name">✈️ ${esc(t.name)}</div>
           <div class="trip-card-sub">${t.start_date} ～ ${t.end_date}</div>
         </div>`;
       }).join('');
@@ -1242,7 +1281,7 @@ async function renderMyTrips() {
     const t = ut.trip;
     return `<div class="trip-card-select" onclick="selectTrip('${t.id}','${ut.member_id||''}')">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
-        <div class="trip-card-name" style="margin-bottom:0">✈️ ${t.name}</div>
+        <div class="trip-card-name" style="margin-bottom:0">✈️ ${esc(t.name)}</div>
         ${isArchived ? '<span class="archived-badge" style="font-size:10px;padding:2px 7px">📦 封存</span>' : ''}
       </div>
       <div class="trip-card-sub">${t.start_date} ～ ${t.end_date}</div>
@@ -1549,15 +1588,21 @@ function genInviteCode() {
   return Math.random().toString(36).substring(2,8).toUpperCase();
 }
 
+let creatingTrip = false;   // 防止連點造成重複建立
+
 async function createTrip() {
+  if (creatingTrip) return;                    // 已在建立中，忽略後續點擊
   const name = document.getElementById('newTripName').value.trim();
   const memberName = document.getElementById('newMemberName').value.trim();
   if (!name || !memberName) { showToast('請填寫旅程名稱和你的名字'); return; }
+  if (!state.user) { showToast('請先登入'); showAuthScreen(); return; }
+  creatingTrip = true;
   const btn = document.getElementById('createTripBtn');
   btn.disabled = true; btn.textContent = '建立中...';
+  let createdTripId = null;                    // 供失敗時回收用
   try {
-    const tripId = 'trip_' + Date.now();
-    const memberId = 'mb_' + Date.now();
+    const tripId = uid('trip');
+    const memberId = uid('mb');
     const inviteCode = genInviteCode();
     const trip = {
       id: tripId, name,
@@ -1567,9 +1612,9 @@ async function createTrip() {
       rate: parseFloat(document.getElementById('newTripRate').value) || 0.206,
       invite_code: inviteCode,
     };
-    if (!state.user) { showToast('請先登入'); showAuthScreen(); return; }
     const { error: tripErr } = await sb.from('trips').insert(trip);
     if (tripErr) throw new Error(tripErr.message);
+    createdTripId = tripId;
     // 先認領旅程，之後才有權限寫入成員（資料列權限依 user_trips 判斷）
     const { error: utErr } = await sb.from('user_trips')
       .upsert({ user_id: state.user.id, trip_id: tripId, member_id: memberId, role: 'owner' });
@@ -1589,8 +1634,19 @@ async function createTrip() {
     await loadAll();
     showApp();
     subscribeRealtime();
-  } catch(e) { showToast('建立失敗：' + e.message); }
-  btn.disabled = false; btn.textContent = '建立旅程 →';
+  } catch(e) {
+    // 中途失敗會留下一個沒有成員的空旅程，順手回收，避免累積殘留
+    if (createdTripId) {
+      try {
+        await sb.from('user_trips').delete().eq('trip_id', createdTripId);
+        await sb.from('trips').delete().eq('id', createdTripId);
+      } catch(_) { /* 回收失敗不影響主要錯誤訊息 */ }
+    }
+    showToast('建立失敗：' + e.message);
+  } finally {
+    creatingTrip = false;
+    btn.disabled = false; btn.textContent = '建立旅程 →';
+  }
 }
 
 let pendingJoinTrip = null;
@@ -1642,7 +1698,7 @@ async function lookupTrip() {
     document.getElementById('existingMembersList').innerHTML = members.map(m => `
       <div onclick="joinAsExisting('${m.id}','${m.name.replace(/'/g,"\\'")}')" style="display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:7px;cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='var(--orange)'" onmouseout="this.style.borderColor='var(--border)'">
         <div style="width:38px;height:38px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;flex-shrink:0">${m.avatar_url ? `<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : m.emoji}</div>
-        <div style="flex:1;font-size:14px;font-weight:500">${m.name}</div>
+        <div style="flex:1;font-size:14px;font-weight:500">${esc(m.name)}</div>
         <div style="font-size:11px;color:var(--orange);font-weight:600">這是我 →</div>
       </div>`).join('');
     showJoinStep2();
@@ -1672,7 +1728,7 @@ async function joinTrip() {
   const btn = document.getElementById('joinTripBtn');
   btn.disabled = true; btn.textContent = '加入中...';
   try {
-    const memberId = 'mb_' + Date.now();
+    const memberId = uid('mb');
     // 先取得存取權，才有權限新增成員
     const trip = await claimTripByCode(memberId);
     const { error: memErr } = await sb.from('members').insert({
@@ -1852,14 +1908,14 @@ function getShares(exp) {
   const baseAmt = toTWD(exp); // 統一用台幣計算分攤
   if (exp.split_mode==='payer') { shares[exp.payer_id] = baseAmt; return shares; }
   if (exp.split_mode==='custom') {
-    // custom 分攤金額是原始幣別，需換算成台幣
-    const rate = state.trip?.rate || 0.206;
-    Object.entries(exp.participants||{}).forEach(([mid,amt])=>{
-      if(amt>0) {
-        const twdAmt = exp.currency==='TWD' ? amt : Math.round(amt*rate);
-        shares[mid]=(shares[mid]||0)+twdAmt;
-      }
-    });
+    // 自訂金額以「比例」分配該筆的台幣總額，而非用當前匯率各自換算。
+    // 這樣即使之後在設定改了匯率，各人分攤總和仍等於該筆金額，帳目不會失衡。
+    const parts = Object.entries(exp.participants||{})
+      .map(([mid,v])=>[mid, parseFloat(v)||0])
+      .filter(([,v])=>v>0);
+    const sum = parts.reduce((a,[,v])=>a+v, 0);
+    if (!sum) { shares[exp.payer_id]=baseAmt; return shares; }
+    parts.forEach(([mid,v])=>{ shares[mid]=(shares[mid]||0) + baseAmt*(v/sum); });
     return shares;
   }
   const pp = Object.entries(exp.participants||{}).filter(([,v])=>v).map(([k])=>k);
@@ -1929,7 +1985,7 @@ function renderHeroBanner() {
 
   const memberAvatars = state.members.map(m =>
     `<div class="hero-av" onclick="showMemberModal('${m.id}')" style="cursor:pointer">${m.avatar_url ? `<img src="${m.avatar_url}">` : m.emoji}</div>
-     <span class="hero-member-name" onclick="showMemberModal('${m.id}')" style="cursor:pointer">${m.name}</span>`
+     <span class="hero-member-name" onclick="showMemberModal('${m.id}')" style="cursor:pointer">${esc(m.name)}</span>`
   ).join('');
 
   const days = Math.ceil((new Date(t.end_date) - new Date(t.start_date)) / 86400000) + 1;
@@ -1938,7 +1994,7 @@ function renderHeroBanner() {
     ${bgHtml}
     <div class="hero-banner-overlay"></div>
     <div class="hero-banner-content">
-      <div class="hero-banner-title">✈️ ${t.name}</div>
+      <div class="hero-banner-title">✈️ ${esc(t.name)}</div>
       <div class="hero-banner-dates">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${days} 天 &nbsp;·&nbsp; ${state.members.length} 人</div>
       <div class="hero-members">${memberAvatars}</div>
     </div>
@@ -2036,15 +2092,15 @@ function expenseHTML(e) {
   return `<div class="expense-row" onclick="openEditModal('${e.id}')">
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
-      <div class="expense-name">${e.name}</div>
+      <div class="expense-name">${esc(e.name)}</div>
       <div class="expense-tags">
-        <span class="tag tag-cat">${e.cat}</span>
+        <span class="tag tag-cat">${esc(e.cat)}</span>
         <span class="tag tag-split">${splitLabel}</span>
-        <span class="tag-pay">${e.pay}</span>
-        ${e.store?'<span class="tag-store">'+e.store+'</span>':''}
+        <span class="tag-pay">${esc(e.pay)}</span>
+        ${e.store?'<span class="tag-store">'+esc(e.store)+'</span>':''}
       </div>
       ${photoBtn}
-      ${e.notes ? `<div style="margin-top:5px;font-size:10px;color:var(--text3);background:var(--bg);border-radius:6px;padding:6px 8px;white-space:pre-line;line-height:1.6">📋 ${e.notes}</div>` : ''}
+      ${e.notes ? `<div style="margin-top:5px;font-size:10px;color:var(--text3);background:var(--bg);border-radius:6px;padding:6px 8px;white-space:pre-line;line-height:1.6">📋 ${esc(e.notes)}</div>` : ''}
     </div>
     <div class="expense-right">
       <div class="amount-jpy">${dispAmt}</div>
@@ -2120,8 +2176,8 @@ function renderSplit() {
       return `<div style="display:grid;grid-template-columns:34px 1fr 58px;align-items:center;padding:6px 13px;border-bottom:1px solid var(--border);font-size:11px;gap:4px">
         <span style="color:var(--text3);font-family:'DM Mono',monospace;font-size:10px">${e.date.slice(5)}</span>
         <div style="min-width:0">
-          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${e.name}${e.store?' · '+e.store:''}</div>
-          <div style="font-size:10px;color:var(--text2);margin-top:1px">${e.cat}${isPayer?` · <span style="color:var(--orange);font-weight:600">付款人</span>`:''}</div>
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${esc(e.name)}${e.store?' · '+esc(e.store):''}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:1px">${esc(e.cat)}${isPayer?` · <span style="color:var(--orange);font-weight:600">付款人</span>`:''}</div>
         </div>
         <span style="text-align:right;font-weight:600;font-family:'DM Mono',monospace;color:${isPayer?'var(--success)':'var(--text)'}">NT$${Math.round(share).toLocaleString()}</span>
       </div>`;
@@ -2129,7 +2185,7 @@ function renderSplit() {
     return `<div style="border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:9px">
       <div style="padding:9px 13px;display:flex;align-items:center;gap:9px;background:var(--bg)">
         <div style="width:32px;height:32px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid var(--border);overflow:hidden">${memberAvatar(m)}</div>
-        <span style="font-size:13px;font-weight:600;flex:1">${m.name}</span>
+        <span style="font-size:13px;font-weight:600;flex:1">${esc(m.name)}</span>
         <span style="font-size:11px;color:var(--text2)">${partExps.length} 筆</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--border)">
@@ -2168,7 +2224,7 @@ function renderPayerStats(){
         <div onclick="showMemberModal('${m.id}')" style="cursor:pointer;flex-shrink:0">${av}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:13px;font-weight:600">${m.name}</span>
+            <span style="font-size:13px;font-weight:600">${esc(m.name)}</span>
             <span style="font-size:13px;font-family:'DM Mono',monospace;font-weight:700">${fmtMain(myExps.reduce((a,e)=>a+toJPY(e),0),paid)}${useJPY()?'<span style="font-size:10px;font-weight:400;color:var(--text2)"> / NT$'+Math.round(paid).toLocaleString()+'</span>':''}</span>
           </div>
           <div style="height:5px;background:var(--bg);border-radius:3px;overflow:hidden">
@@ -2208,12 +2264,12 @@ function renderSettings() {
       : `<span style="font-size:18px">${m.emoji}</span>`;
     return `<div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--border)">
       <div style="width:36px;height:36px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;border:2px solid ${isMe?'var(--orange)':'var(--border)'};flex-shrink:0">${avContent}</div>
-      <span style="font-size:13px;flex:1;font-weight:${isMe?'600':'400'}">${m.name}</span>
+      <span style="font-size:13px;flex:1;font-weight:${isMe?'600':'400'}">${esc(m.name)}</span>
       ${isMe
         ? `<span style="font-size:10px;color:var(--orange);background:var(--orange-light);padding:2px 7px;border-radius:20px;flex-shrink:0">我</span>
            <button onclick="openAvatarPicker()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:var(--text2);flex-shrink:0">換頭像</button>`
         : `<button onclick="setAsMe('${m.id}')" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:var(--text2);flex-shrink:0">設為我</button>
-           <button onclick="removeMember('${m.id}','${m.name}')" style="background:none;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#EF4444;flex-shrink:0">移除</button>`}
+           <button onclick="removeMember('${m.id}','${jsq(m.name)}')" style="background:none;border:1px solid #FECACA;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;color:#EF4444;flex-shrink:0">移除</button>`}
     </div>`;
   }).join('');
 }
@@ -2274,7 +2330,7 @@ function pickAddMemberEmoji(el, e) {
 async function addMember() {
   const name = document.getElementById('addMemberName').value.trim();
   if (!name) { showToast('請填寫旅伴名字'); return; }
-  const memberId = 'mb_' + Date.now();
+  const memberId = uid('mb');
   let avatar_url = null;
   if (addMemberPhotoBase64) {
     showToast('上傳照片中...');
@@ -2451,7 +2507,7 @@ function renderParticipants(){
     const val = isLocked ? locked[m.id] : autoEach;
     return `<div class="participant-row">
       <div class="participant-av">${memberAvatar(m)}</div>
-      <div class="participant-name">${m.name}${m.id===state.selectedPayer?' 👑':''}</div>
+      <div class="participant-name">${esc(m.name)}${m.id===state.selectedPayer?' 👑':''}</div>
       <div class="participant-share" style="display:flex;align-items:center;gap:5px">
         <input type="number" value="${val||''}" placeholder="0" min="0"
           style="border-color:${isLocked?'var(--orange)':'var(--border)'}"
@@ -2519,7 +2575,7 @@ async function saveExpense() {
       const updatePayload = isOwner ? exp : { photo_url: photoUrl };
       await sb.from('expenses').update(updatePayload).eq('id', state.editId);
     } else {
-      exp.id = 'exp_' + Date.now();
+      exp.id = uid('exp');
       exp.created_by = state.myMemberId;
       await sb.from('expenses').insert(exp);
     }
@@ -2627,7 +2683,7 @@ async function handleFile(file){
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
     // 校正：若 sum(qty×price) 與基準金額不符，精準找出哪幾個品項的 price 是行小計
@@ -2958,7 +3014,7 @@ function showMemberModal(id) {
     : `<div style="width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:52px">${m.emoji}</div>`;
   backdrop.innerHTML = `<div onclick="event.stopPropagation()" style="background:var(--surface);border-radius:20px;padding:28px 24px;text-align:center;min-width:200px;max-width:280px;width:100%">
     ${avHtml}
-    <div style="font-size:20px;font-weight:700;margin-top:14px">${m.name}</div>
+    <div style="font-size:20px;font-weight:700;margin-top:14px">${esc(m.name)}</div>
     ${m.id===state.myMemberId?'<div style="font-size:11px;color:var(--orange);margin-top:4px;font-weight:600">👤 這是我</div>':''}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">
       <div style="background:var(--bg);border-radius:10px;padding:10px">
@@ -3015,13 +3071,13 @@ async function renderMemoir() {
       <div style="width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.8);background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;flex-shrink:0">
         ${m.avatar_url?`<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover">`:m.emoji}
       </div>
-      <span style="font-size:9px;color:rgba(255,255,255,.9);white-space:nowrap;max-width:36px;overflow:hidden;text-overflow:ellipsis">${m.name}</span>
+      <span style="font-size:9px;color:rgba(255,255,255,.9);white-space:nowrap;max-width:36px;overflow:hidden;text-overflow:ellipsis">${esc(m.name)}</span>
     </div>`
   ).join('');
   let html = `
     <div class="memoir-cover" style="${coverImg ? `background:url('${coverImg}') center/cover no-repeat;` : ''}min-height:180px;display:flex;flex-direction:column;justify-content:flex-end;padding:0;">
       <div style="position:relative;z-index:1;padding:18px 16px 16px">
-        <div class="memoir-cover-title" style="font-size:20px;margin-bottom:4px">✈️ ${t.name}</div>
+        <div class="memoir-cover-title" style="font-size:20px;margin-bottom:4px">✈️ ${esc(t.name)}</div>
         <div class="memoir-cover-sub">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${days} 天 &nbsp;·&nbsp; ${state.members.length} 人</div>
         ${isArchived ? '<div style="margin-top:6px"><span class="archived-badge">✓ 已封存</span></div>' : ''}
         <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">${memoirAvatars}</div>
@@ -3069,7 +3125,7 @@ async function renderMemoir() {
           return `<div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:11px;color:var(--text3);width:14px;text-align:right">${i+1}</span>
             ${av}
-            <span style="font-size:12px;font-weight:600;flex:1">${p.name}</span>
+            <span style="font-size:12px;font-weight:600;flex:1">${esc(p.name)}</span>
             <span style="font-size:11px;color:var(--text2)">${wins}勝${losses}負</span>
             <span style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:${tot>=0?'var(--success)':'var(--danger)'}">${tot>=0?'+':''}${tot}</span>
           </div>`;
@@ -3468,7 +3524,7 @@ function exportMemoir() {
   const memoirText = t.memoir_text ? formatMemoirText(t.memoir_text) : '<p style="color:#999">尚未生成回憶錄</p>';
   const photos = state.expenses.filter(e=>e.photo_url).map(e=>`<img src="${e.photo_url}" style="width:130px;height:130px;object-fit:cover;border-radius:10px;margin:4px">`).join('');
   const catRows = CATS.map(c=>{const s=state.expenses.filter(e=>e.cat===c).reduce((a,e)=>a+toTWD(e),0);return s>0?`<tr><td>${c}</td><td style="text-align:right;font-weight:600">NT$${Math.round(s).toLocaleString()}</td></tr>`:''}).join('');
-  const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>${t.name} 回憶錄</title>
+  const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>${esc(t.name)} 回憶錄</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Noto Sans TC',sans-serif;background:#F2F0EB;color:#1A1816;line-height:1.8}
   .cover{background:linear-gradient(135deg,#E8682A,#F5A878,#FFD4A8);padding:60px 40px;text-align:center;color:white}
@@ -3485,7 +3541,7 @@ function exportMemoir() {
   .cat-table td{padding:8px 12px;border-bottom:1px solid #E5E2DC;font-size:14px}
   .footer{text-align:center;color:#ccc;font-size:11px;padding:30px 20px}
   </style></head><body>
-  <div class="cover"><div style="font-size:52px;margin-bottom:16px">📖</div><h1>${t.name}</h1><div class="sub">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${state.members.map(m=>m.name).join('、')}</div></div>
+  <div class="cover"><div style="font-size:52px;margin-bottom:16px">📖</div><h1>${esc(t.name)}</h1><div class="sub">${t.start_date} ～ ${t.end_date} &nbsp;·&nbsp; ${state.members.map(m=>m.name).join('、')}</div></div>
   <div class="container">
     <div class="stats">
       <div class="stat"><div class="stat-val">${Math.ceil((new Date(t.end_date)-new Date(t.start_date))/86400000)}</div><div class="stat-label">旅行天數</div></div>
@@ -4063,7 +4119,7 @@ function renderGameLeaderboard() {
         <span style="font-size:18px;width:26px;text-align:center;flex-shrink:0">${rankIcon[i]||i+1}</span>
         ${gAvHtml(p,36)}
         <div style="flex:1;min-width:0;margin-left:2px">
-          <div style="font-size:13px;font-weight:600">${p.name}</div>
+          <div style="font-size:13px;font-weight:600">${esc(p.name)}</div>
           <div style="font-size:10px;color:var(--text2);margin-top:1px">${st.wins}勝 ${st.losses}負 · 均${st.avg>=0?'+':''}${st.avg.toFixed(1)}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
@@ -4125,7 +4181,7 @@ function renderGameStats() {
       <div style="min-width:0;flex:1">
         <div style="font-size:10px;color:var(--text2);margin-bottom:3px">${label}</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px">
-          ${list.map(p=>`<div style="display:flex;align-items:center;gap:4px">${gAvHtml(p,18)}<span style="font-size:11px;font-weight:600">${p.name}</span></div>`).join('')}
+          ${list.map(p=>`<div style="display:flex;align-items:center;gap:4px">${gAvHtml(p,18)}<span style="font-size:11px;font-weight:600">${esc(p.name)}</span></div>`).join('')}
         </div>
       </div>
       <div style="font-size:13px;font-weight:700;font-family:'DM Mono',monospace;flex-shrink:0;color:${valColor||'var(--orange)'}">${val}</div>
@@ -4169,7 +4225,7 @@ function renderGameRoundList() {
             return `<div class="g-round-cell">
               <div style="display:flex;align-items:center;gap:6px">
                 ${gAvHtml(p,22)}
-                <span style="font-size:11px">${p.name}</span>
+                <span style="font-size:11px">${esc(p.name)}</span>
               </div>
               <span class="${cls}" style="font-size:12px">${v>0?'+':''}${v}</span>
             </div>`;
@@ -4204,7 +4260,7 @@ function renderGameMemberChips() {
              <div style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--surface)">
                ${m.avatar_url?`<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover">`:m.emoji}
              </div>
-             <span style="font-size:12px;font-weight:${sel?'700':'500'};color:${sel?'var(--orange)':'var(--text)'}">${sel?'✓ ':''} ${m.name}</span>
+             <span style="font-size:12px;font-weight:${sel?'700':'500'};color:${sel?'var(--orange)':'var(--text)'}">${sel?'✓ ':''} ${esc(m.name)}</span>
            </div>`;
          }).join('')}
        </div>`
@@ -4284,7 +4340,7 @@ function openGameRoundModal(roundId) {
     const val = round ? (round.scores[p.id]||0) : 0;
     return `<div id="grow_${p.id}" style="display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--border);border-radius:10px;transition:background .15s">
       ${gAvHtml(p,34)}
-      <span style="font-size:13px;font-weight:600;flex:1">${p.name}</span>
+      <span style="font-size:13px;font-weight:600;flex:1">${esc(p.name)}</span>
       <button id="gauto_${p.id}" onclick="toggleAutoCalc('${p.id}')" title="自動計算贏家分數"
         style="border:1.5px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer;background:none;color:var(--text2);transition:all .15s;white-space:nowrap">🎯 贏家</button>
       <div style="display:flex;align-items:center;gap:6px">
