@@ -930,6 +930,14 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div class="modal-title">這項是誰的？</div>
     <div id="itemOwnerName" style="font-size:12px;color:var(--text2);margin-bottom:12px"></div>
     <div id="itemOwnerList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+    <div id="itemOwnerQtyWrap" style="display:none;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg);border-radius:var(--radius-sm);margin-bottom:12px">
+      <span style="font-size:12px">套用到其中幾個？</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onclick="stepItemQty(-1)" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-size:16px;cursor:pointer;font-family:inherit">−</button>
+        <span id="itemOwnerQty" style="font-size:15px;font-weight:700;font-family:'DM Mono',monospace;min-width:30px;text-align:center"></span>
+        <button onclick="stepItemQty(1)" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-size:16px;cursor:pointer;font-family:inherit">＋</button>
+      </div>
+    </div>
     <label id="itemOwnerPaidWrap" style="display:none;align-items:center;gap:8px;padding:10px;background:var(--bg);border-radius:var(--radius-sm);margin-bottom:12px;cursor:pointer">
       <input type="checkbox" id="itemOwnerPaid" style="width:18px;height:18px;flex-shrink:0">
       <span style="font-size:12px">他已經把錢給我了（不列入分攤）</span>
@@ -2796,16 +2804,17 @@ function showReceiptResult(data){
     :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--orange-light);border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:${size*0.55}px">${m.emoji}</div>`;
   const itemRows=data.items.map((it,i)=>{
     // owner_id：'ALL' 代表大家平分；否則是該成員 id。settled：他已把錢給我。
-    const owner=it.owner_id==='ALL'?null:(state.members.find(m=>m.id===it.owner_id)||state.members.find(m=>m.id===state.myMemberId));
-    const ownerHtml=it.owner_id==='ALL'
-      ? `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px">👥</div>`
+    const excluded=it.owner_id==='NONE';
+    const owner=(it.owner_id==='ALL'||excluded)?null:(state.members.find(m=>m.id===it.owner_id)||state.members.find(m=>m.id===state.myMemberId));
+    const ownerHtml=(it.owner_id==='ALL'||excluded)
+      ? `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px">${excluded?'🚫':'👥'}</div>`
       : (owner?memberAvatarHtml(owner):'👤');
     const tick=(it.owner_id!=='ALL'&&it.settled)
       ? `<div style="position:absolute;right:-2px;bottom:-2px;width:14px;height:14px;border-radius:50%;background:var(--success);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--surface)">✓</div>`
       : '';
-    return `<div class="result-item" style="align-items:center">
+    return `<div class="result-item" style="align-items:center;${excluded?'opacity:.45':''}">
       <div class="item-num">${i+1}</div>
-      <div class="item-info"><div class="item-name">${it.name_zh}</div><div class="item-sub">${it.name_ja} · ${it.quantity||1}x ¥${it.price}</div></div>
+      <div class="item-info"><div class="item-name" style="${excluded?'text-decoration:line-through':''}">${it.name_zh}</div><div class="item-sub">${it.name_ja} · ${it.quantity||1}x ¥${it.price}</div></div>
       <div style="display:flex;align-items:center;gap:6px">
         <div onclick="openItemOwner(${i})" style="cursor:pointer;flex-shrink:0;position:relative" title="點擊設定這項是誰的">${ownerHtml}${tick}</div>
         <div class="item-price">¥${((it.quantity||1)*it.price).toLocaleString()}</div>
@@ -2840,12 +2849,15 @@ function showReceiptResult(data){
 // ── 品項歸屬：這項是誰的 ──────────────────────────────────────
 // owner_id='ALL' → 全員平分；否則該成員自己負擔。
 // settled=true   → 他已把現金給我，等於他自己付，不進分攤。
-let itemOwnerIdx=null, itemOwnerPick=null;
+let itemOwnerIdx=null, itemOwnerPick=null, itemOwnerQty=1;
 function openItemOwner(idx){
   if(!pendingReceipt||!state.members.length)return;
   const it=pendingReceipt.items[idx];
   itemOwnerIdx=idx; itemOwnerPick=it.owner_id||state.myMemberId;
-  document.getElementById('itemOwnerName').textContent=it.name_zh+' ¥'+((it.quantity||1)*it.price).toLocaleString();
+  itemOwnerQty=it.quantity||1;
+  const q=it.quantity||1;
+  document.getElementById('itemOwnerName').textContent=
+    it.name_zh+(q>1?` ¥${it.price.toLocaleString()}×${q} = ¥${(q*it.price).toLocaleString()}`:` ¥${it.price.toLocaleString()}`);
   document.getElementById('itemOwnerPaid').checked=!!it.settled;
   renderItemOwnerList();
   document.getElementById('itemOwnerModal').classList.add('open');
@@ -2855,8 +2867,10 @@ function renderItemOwnerList(){
   const av=m=>m.avatar_url
     ?`<img src="${m.avatar_url}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0">`
     :`<span style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${m.emoji||'🙂'}</span>`;
-  const opts=[{id:'ALL',icon:'<span style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">👥</span>',name:'大家平分'}]
-    .concat(state.members.map(m=>({id:m.id,icon:av(m),name:esc(m.name)+(m.id===state.myMemberId?'（我）':'')})));
+  const chip=(e)=>`<span style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${e}</span>`;
+  const opts=[{id:'ALL',icon:chip('👥'),name:'大家平分'}]
+    .concat(state.members.map(m=>({id:m.id,icon:av(m),name:esc(m.name)+(m.id===state.myMemberId?'（我）':'')})))
+    .concat([{id:'NONE',icon:chip('🚫'),name:'不列入這筆帳（不算錢）'}]);
   document.getElementById('itemOwnerList').innerHTML=opts.map(o=>{
     const sel=o.id===itemOwnerPick;
     return `<div onclick="pickItemOwner('${jsq(o.id)}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid ${sel?'var(--orange)':'var(--border)'};background:${sel?'var(--orange-light)':'none'};font-size:13px;cursor:pointer;font-weight:${sel?'600':'400'}">${o.icon}<span>${o.name}</span></div>`;
@@ -2864,15 +2878,36 @@ function renderItemOwnerList(){
   // 平分時沒有「誰欠誰」的問題，隱藏已收款選項
   const wrap=document.getElementById('itemOwnerPaidWrap');
   const isMe=itemOwnerPick===state.myMemberId;
-  wrap.style.display=(itemOwnerPick==='ALL'||isMe)?'none':'flex';
+  wrap.style.display=(itemOwnerPick==='ALL'||itemOwnerPick==='NONE'||isMe)?'none':'flex';
+  // 數量大於 1 才需要選「套用到幾個」；選到一半會把該行拆成兩列
+  const it=pendingReceipt?.items[itemOwnerIdx];
+  const max=it?(it.quantity||1):1;
+  const qw=document.getElementById('itemOwnerQtyWrap');
+  qw.style.display=max>1?'flex':'none';
+  if(max>1) document.getElementById('itemOwnerQty').textContent=itemOwnerQty+' / '+max;
 }
 function pickItemOwner(id){ itemOwnerPick=id; renderItemOwnerList(); }
+function stepItemQty(d){
+  const it=pendingReceipt?.items[itemOwnerIdx]; if(!it)return;
+  const max=it.quantity||1;
+  itemOwnerQty=Math.min(max,Math.max(1,itemOwnerQty+d));
+  document.getElementById('itemOwnerQty').textContent=itemOwnerQty+' / '+max;
+}
 function confirmItemOwner(){
   if(itemOwnerIdx===null||!pendingReceipt)return;
   const it=pendingReceipt.items[itemOwnerIdx];
-  it.owner_id=itemOwnerPick;
-  it.settled=(itemOwnerPick!=='ALL'&&itemOwnerPick!==state.myMemberId)
+  const settled=(itemOwnerPick!=='ALL'&&itemOwnerPick!=='NONE'&&itemOwnerPick!==state.myMemberId)
     ? document.getElementById('itemOwnerPaid').checked : false;
+  const max=it.quantity||1;
+  if(max>1 && itemOwnerQty<max){
+    // 只套用到部分數量：原行留下剩餘的，另外插入一行套用新設定
+    it.quantity=max-itemOwnerQty;
+    pendingReceipt.items.splice(itemOwnerIdx+1,0,
+      {...it,quantity:itemOwnerQty,owner_id:itemOwnerPick,settled});
+  } else {
+    it.owner_id=itemOwnerPick;
+    it.settled=settled;
+  }
   document.getElementById('itemOwnerModal').classList.remove('open');
   itemOwnerIdx=null;
   showReceiptResult(pendingReceipt);
@@ -2915,8 +2950,15 @@ async function saveReceiptExpenses(){
   //   ALL          → 全員平分
   //   <成員id>     → 該成員自己負擔，我先幫他付（他欠我）
   //   <成員id>|s   → 該成員自己負擔，且已把錢給我（等於他自己付，不影響餘額）
+  //   NONE         → 排除，完全不列入這筆帳（金額也要從合計扣掉）
   const groups={};
-  pendingReceipt.items.forEach(it=>{
+  const included=pendingReceipt.items.filter(it=>it.owner_id!=='NONE');
+  if(!included.length){
+    if(btn){btn.disabled=false;btn.textContent='確認儲存';}
+    showToast('所有品項都被排除了，沒有可儲存的內容');
+    return;
+  }
+  included.forEach(it=>{
     const owner=it.owner_id||defPayer;
     const key=(owner!=='ALL'&&it.settled&&owner!==defPayer)?owner+'|s':owner;
     if(!groups[key])groups[key]=[];
@@ -2924,8 +2966,13 @@ async function saveReceiptExpenses(){
   });
   const now=Date.now();
   // 按比例分攤含稅合計到各付款人群組
-  const grandSubtotal=pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
-  const receiptTotal=pendingReceipt.total||grandSubtotal; // 含稅合計
+  const allSubtotal=pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  const grandSubtotal=included.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
+  const fullTotal=pendingReceipt.total||allSubtotal; // 收據上的含稅合計
+  // 有品項被排除時，依比例把稅金與折扣一起扣掉，只記錄剩下品項應付的金額
+  const receiptTotal=(included.length===pendingReceipt.items.length||allSubtotal<=0)
+    ? fullTotal
+    : Math.round(fullTotal*(grandSubtotal/allSubtotal));
   const entries=Object.entries(groups);
   // 先算每組的含稅金額（按品項小計比例）
   const groupAmts=[];
