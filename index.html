@@ -622,6 +622,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
     <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
     <div id="scanResult"></div>
+    <!-- 【暫時】效能量測顯示區，查清楚後移除 -->
+    <div id="scanTiming" style="font-size:12px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:12px;display:none;line-height:1.7"></div>
   </div>
 </div>
 
@@ -1981,6 +1983,7 @@ function goPage(id, btn) {
   else if(id==='records')renderRecords();
   else if(id==='split')renderSplit();
   else if(id==='stats')renderStats();
+  else if(id==='scan')renderTiming();
   else if(id==='pack')loadPackCustomization();
   else if(id==='memoir')renderMemoir();
   else if(id==='game')renderGame();
@@ -2716,7 +2719,7 @@ async function handleFile(file){
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5',max_tokens:3000,thinking:{type:'disabled'},output_config:{effort:'low'},messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const _tApi=performance.now();
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     window._scanTiming={shrink:((_tShrink-_t0)/1000).toFixed(1),api:((_tApi-_tShrink)/1000).toFixed(1),kb:Math.round(b64.length*0.75/1024)};
@@ -2755,10 +2758,29 @@ async function handleFile(file){
       }
     }
     showReceiptResult(parsed);
-    // 【暫時】把量測結果跳出來，查清楚後連同上面的計時一起移除
+    // 【暫時】把量測結果固定顯示在畫面上，方便截圖；查清楚後連同上面的計時一起移除
     if(window._scanTiming){const t=window._scanTiming;
-      showToast(`⏱ 縮圖${t.shrink}s 辨識${t.api}s 送出${t.kb}KB`);}
+      const items=(parsed.items||[]).length;
+      showTiming(`⏱ 辨識：縮圖 ${t.shrink} 秒 ・ AI 辨識 ${t.api} 秒
+送出圖片 ${t.kb}KB ・ 辨識出 ${items} 個品項`);}
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
+}
+// 【暫時】效能量測的顯示函式：固定留在畫面上不會消失，重新整理也還在，方便截圖
+const TIMING_KEY = 'jpTiming';
+function showTiming(line, append){
+  const prev = append ? (localStorage.getItem(TIMING_KEY) || '') : '';
+  localStorage.setItem(TIMING_KEY, prev ? prev + '\n' + line : line);
+  renderTiming();
+}
+function clearTiming(){ localStorage.removeItem(TIMING_KEY); renderTiming(); }
+function renderTiming(){
+  const el = document.getElementById('scanTiming');
+  if (!el) return;
+  const text = localStorage.getItem(TIMING_KEY);
+  if (!text) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.innerHTML = esc(text).replace(/\n/g, '<br>') +
+    '<div style="margin-top:8px"><span onclick="clearTiming()" style="cursor:pointer;text-decoration:underline">清除</span></div>';
 }
 function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
 
@@ -2930,7 +2952,7 @@ async function saveReceiptExpenses(){
   const _sInsert=performance.now();
   await loadAll();
   const _sLoad=performance.now();
-  showToast(`儲存：上傳${((_sUpload-_s0)/1000).toFixed(1)}s 寫入${((_sInsert-_sUpload)/1000).toFixed(1)}s 重載${((_sLoad-_sInsert)/1000).toFixed(1)}s`);
+  showTiming(`💾 儲存：上傳照片 ${((_sUpload-_s0)/1000).toFixed(1)} 秒 ・ 寫入資料 ${((_sInsert-_sUpload)/1000).toFixed(1)} 秒 ・ 重載全部 ${((_sLoad-_sInsert)/1000).toFixed(1)} 秒`, true);
   pendingReceipt=null; pendingReceiptFile=null;
   document.getElementById('scanArea').innerHTML='<div class="scan-icon">📷</div><div class="scan-title">點擊上傳收據</div><div class="scan-sub">支援 JPG、PNG</div>';
   document.getElementById('scanArea').onclick=()=>document.getElementById('fileInput').click();
