@@ -2744,12 +2744,10 @@ async function handleFile(file){
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
-    // thinking 關閉：sonnet-5 預設會思考，而思考與輸出共用 max_tokens，
-    // 品項多的收據會在 JSON 寫到一半被切斷，導致下面 JSON.parse 直接失敗。
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5',max_tokens:3000,thinking:{type:'disabled'},output_config:{format:{type:'json_schema',schema:RECEIPT_SCHEMA}},messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     if(data.stop_reason==='max_tokens')throw new Error('收據品項太多，辨識結果被截斷，請分次拍攝');
-    const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.trim());
+    const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
     // 校正：若 sum(qty×price) 與基準金額不符，精準找出哪幾個品項的 price 是行小計
     if(parsed.items?.length){
       const calcSum=parsed.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
