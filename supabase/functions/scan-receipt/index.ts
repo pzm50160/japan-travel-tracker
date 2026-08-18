@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
         model: MODEL,
         max_tokens: 3000,
         thinking: { type: "disabled" },
-        output_config: { effort: "low" },
+        output_config: { effort: "high" },  // 測試中：先前是 low，改回 4.6 的預設值比對速度
         messages: [{
           role: "user",
           content: [
