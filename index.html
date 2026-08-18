@@ -2631,8 +2631,10 @@ async function handleFile(file){
   result.innerHTML='<div class="loading-bar"><div class="loading-text"><span class="btn-spinner"></span>AI 正在辨識收據...</div></div>';
   if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
   try{
+    const _t0=performance.now();  // 【暫時】效能量測，確認時間花在哪，查清楚後移除
     const {b64,mtype,blob}=await toBase64ForScan(file);
     pendingReceiptFile=blob; // 之後存進 Storage 的改用這張縮圖（原圖 8MB 上傳很慢）
+    const _tShrink=performance.now();
     const receiptPrompt = `你是頂尖的日本收據辨識專家，精通日文、熟悉日本各類消費場所（超市、便利商店、餐廳、居酒屋、百貨公司、藥妝店）的商品與菜單。請逐字仔細辨識收據圖片中每個品項，給出最精確的繁體中文翻譯。
 
 【辨識原則】
@@ -2715,7 +2717,9 @@ async function handleFile(file){
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    const _tApi=performance.now();
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
+    window._scanTiming={shrink:((_tShrink-_t0)/1000).toFixed(1),api:((_tApi-_tShrink)/1000).toFixed(1),kb:Math.round(b64.length*0.75/1024)};
     const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
     // 校正：若 sum(qty×price) 與基準金額不符，精準找出哪幾個品項的 price 是行小計
     if(parsed.items?.length){
@@ -2751,6 +2755,9 @@ async function handleFile(file){
       }
     }
     showReceiptResult(parsed);
+    // 【暫時】把量測結果顯示出來，手機上看得到；查清楚後連同上面的計時一起移除
+    if(window._scanTiming){const t=window._scanTiming;const el=document.getElementById('scanResult');
+      if(el)el.insertAdjacentHTML('afterbegin',`<div style="font-size:11px;color:var(--text2);padding:6px 2px">⏱ 縮圖 ${t.shrink}s ・ 辨識 ${t.api}s ・ 送出 ${t.kb}KB</div>`);}
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
 }
 function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
@@ -2883,10 +2890,12 @@ async function saveReceiptExpenses(){
   const defPart=state.members.reduce((a,m)=>({...a,[m.id]:true}),{});
   const defPayer=state.myMemberId||state.members[0]?.id;
   // 上傳收據照片
+  const _s0=performance.now();  // 【暫時】效能量測
   let photoUrl=null;
   if(pendingReceiptFile){
     try{ photoUrl=await uploadToStorage(pendingReceiptFile,'receipts'); }catch(e){}
   }
+  const _sUpload=performance.now();
   // 依付款人分組
   const groups={};
   pendingReceipt.items.forEach(it=>{
@@ -2918,7 +2927,10 @@ async function saveReceiptExpenses(){
     return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:pid,split_mode:'equal',participants:{...defPart},trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
   });
   await sb.from('expenses').insert(exps);
+  const _sInsert=performance.now();
   await loadAll();
+  const _sLoad=performance.now();
+  showToast(`儲存：上傳${((_sUpload-_s0)/1000).toFixed(1)}s 寫入${((_sInsert-_sUpload)/1000).toFixed(1)}s 重載${((_sLoad-_sInsert)/1000).toFixed(1)}s`);
   pendingReceipt=null; pendingReceiptFile=null;
   document.getElementById('scanArea').innerHTML='<div class="scan-icon">📷</div><div class="scan-title">點擊上傳收據</div><div class="scan-sub">支援 JPG、PNG</div>';
   document.getElementById('scanArea').onclick=()=>document.getElementById('fileInput').click();
