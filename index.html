@@ -2851,11 +2851,15 @@ function openItemOwner(idx){
   document.getElementById('itemOwnerModal').classList.add('open');
 }
 function renderItemOwnerList(){
-  const opts=[{id:'ALL',label:'👥 大家平分'}].concat(
-    state.members.map(m=>({id:m.id,label:(m.emoji||'🙂')+' '+m.name+(m.id===state.myMemberId?'（我）':'')})));
+  // 頭像沿用成員設定的照片（沒設才用 emoji），跟品項列與其他頁面一致
+  const av=m=>m.avatar_url
+    ?`<img src="${m.avatar_url}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+    :`<span style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${m.emoji||'🙂'}</span>`;
+  const opts=[{id:'ALL',icon:'<span style="width:26px;height:26px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">👥</span>',name:'大家平分'}]
+    .concat(state.members.map(m=>({id:m.id,icon:av(m),name:esc(m.name)+(m.id===state.myMemberId?'（我）':'')})));
   document.getElementById('itemOwnerList').innerHTML=opts.map(o=>{
     const sel=o.id===itemOwnerPick;
-    return `<div onclick="pickItemOwner('${jsq(o.id)}')" style="padding:11px 12px;border-radius:var(--radius-sm);border:1.5px solid ${sel?'var(--orange)':'var(--border)'};background:${sel?'var(--orange-light)':'none'};font-size:13px;cursor:pointer;font-weight:${sel?'600':'400'}">${esc(o.label)}</div>`;
+    return `<div onclick="pickItemOwner('${jsq(o.id)}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-sm);border:1.5px solid ${sel?'var(--orange)':'var(--border)'};background:${sel?'var(--orange-light)':'none'};font-size:13px;cursor:pointer;font-weight:${sel?'600':'400'}">${o.icon}<span>${o.name}</span></div>`;
   }).join('');
   // 平分時沒有「誰欠誰」的問題，隱藏已收款選項
   const wrap=document.getElementById('itemOwnerPaidWrap');
