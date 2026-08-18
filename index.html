@@ -615,6 +615,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   <h2 style="font-size:17px;font-weight:700;margin-bottom:3px">掃描收據</h2>
   <p style="font-size:11px;color:var(--text2);margin-bottom:13px">AI 自動辨識日文收據並翻譯</p>
   <div class="card" style="padding:0;overflow:hidden">
+    <!-- 【暫時】效能量測顯示區，查清楚後移除。放最上面才不會被結果卡片推到螢幕外 -->
+    <div id="scanTiming" style="font-size:12px;color:var(--text);background:#FEF3E2;border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;display:none;line-height:1.8"></div>
     <div class="scan-area" id="scanArea" onclick="document.getElementById('fileInput').click()" ondrop="handleDrop(event)" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')">
       <div class="scan-icon">📷</div>
       <div class="scan-title">點擊上傳收據</div>
@@ -622,8 +624,6 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
     <input type="file" id="fileInput" accept="image/*" onchange="handleFile(this.files[0])">
     <div id="scanResult"></div>
-    <!-- 【暫時】效能量測顯示區，查清楚後移除 -->
-    <div id="scanTiming" style="font-size:12px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-top:12px;display:none;line-height:1.7"></div>
   </div>
 </div>
 
@@ -2719,7 +2719,11 @@ async function handleFile(file){
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5',max_tokens:3000,thinking:{type:'disabled'},output_config:{effort:'low'},messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    // 三個參數都明寫，不依賴模型預設值（不同世代預設不同，換模型時很容易被雷）：
+    //   sonnet-4-6  斷詞對中日文較省，同一份提示詞比 sonnet-5 少約 30% token（實測每張 $0.02 vs $0.03）
+    //   thinking    關閉；讀收據是抽取任務，不需要推理，開了只會變慢
+    //   effort      low；預設是 high，等於一直掛在最慢最貴的檔位
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,thinking:{type:'disabled'},output_config:{effort:'low'},messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const _tApi=performance.now();
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
     window._scanTiming={shrink:((_tShrink-_t0)/1000).toFixed(1),api:((_tApi-_tShrink)/1000).toFixed(1),kb:Math.round(b64.length*0.75/1024)};
