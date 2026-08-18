@@ -2726,7 +2726,7 @@ async function handleFile(file){
     const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,thinking:{type:'disabled'},output_config:{effort:'low'},messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const _tApi=performance.now();
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
-    window._scanTiming={shrink:((_tShrink-_t0)/1000).toFixed(1),api:((_tApi-_tShrink)/1000).toFixed(1),kb:Math.round(b64.length*0.75/1024)};
+    window._scanTiming={shrink:((_tShrink-_t0)/1000).toFixed(1),api:((_tApi-_tShrink)/1000).toFixed(1),kb:Math.round(b64.length*0.75/1024),src:(file.size/1048576).toFixed(1)};
     const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
     // 校正：若 sum(qty×price) 與基準金額不符，精準找出哪幾個品項的 price 是行小計
     if(parsed.items?.length){
@@ -2766,7 +2766,7 @@ async function handleFile(file){
     if(window._scanTiming){const t=window._scanTiming;
       const items=(parsed.items||[]).length;
       showTiming(`⏱ 辨識：縮圖 ${t.shrink} 秒 ・ AI 辨識 ${t.api} 秒
-送出圖片 ${t.kb}KB ・ 辨識出 ${items} 個品項`);}
+原圖 ${t.src}MB → 送出 ${t.kb}KB ・ 辨識出 ${items} 個品項`);}
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
 }
 // 【暫時】效能量測的顯示函式：固定留在畫面上不會消失，重新整理也還在，方便截圖
