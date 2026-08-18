@@ -2755,9 +2755,9 @@ async function handleFile(file){
       }
     }
     showReceiptResult(parsed);
-    // 【暫時】把量測結果顯示出來，手機上看得到；查清楚後連同上面的計時一起移除
-    if(window._scanTiming){const t=window._scanTiming;const el=document.getElementById('scanResult');
-      if(el)el.insertAdjacentHTML('afterbegin',`<div style="font-size:11px;color:var(--text2);padding:6px 2px">⏱ 縮圖 ${t.shrink}s ・ 辨識 ${t.api}s ・ 送出 ${t.kb}KB</div>`);}
+    // 【暫時】把量測結果跳出來，查清楚後連同上面的計時一起移除
+    if(window._scanTiming){const t=window._scanTiming;
+      showToast(`⏱ 縮圖${t.shrink}s 辨識${t.api}s 送出${t.kb}KB`);}
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
 }
 function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
