@@ -2631,7 +2631,8 @@ async function handleFile(file){
   result.innerHTML='<div class="loading-bar"><div class="loading-text"><span class="btn-spinner"></span>AI 正在辨識收據...</div></div>';
   if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
   try{
-    const {b64,mtype}=await toBase64ForScan(file);
+    const {b64,mtype,blob}=await toBase64ForScan(file);
+    pendingReceiptFile=blob; // 之後存進 Storage 的改用這張縮圖（原圖 8MB 上傳很慢）
     const receiptPrompt = `你是頂尖的日本收據辨識專家，精通日文、熟悉日本各類消費場所（超市、便利商店、餐廳、居酒屋、百貨公司、藥妝店）的商品與菜單。請逐字仔細辨識收據圖片中每個品項，給出最精確的繁體中文翻譯。
 
 【辨識原則】
@@ -2771,12 +2772,13 @@ async function toBase64ForScan(file){
     canvas.width = canvas.height = 0; // 盡早釋放記憶體
     const b64 = dataUrl.split(',')[1];
     if (!b64) throw new Error('轉檔結果為空');
-    return { b64, mtype: 'image/jpeg' };
+    // blob 拿來存進 Storage：上傳縮圖而非原圖，儲存快很多也省空間
+    return { b64, mtype: 'image/jpeg', blob: dataUrlToBlob(dataUrl) };
   }catch(e){
     // 縮圖失敗（例如瀏覽器不支援該格式）就退回原本做法，維持原有行為
     const b64 = await toBase64(file);
     const mtype = (file.type && file.type !== 'image/heic' && file.type !== 'image/heif') ? file.type : 'image/jpeg';
-    return { b64, mtype };
+    return { b64, mtype, blob: file };
   }
 }
 let pendingReceipt=null, pendingReceiptFile=null;
