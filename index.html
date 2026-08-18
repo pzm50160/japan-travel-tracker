@@ -2631,7 +2631,7 @@ async function handleFile(file){
   result.innerHTML='<div class="loading-bar"><div class="loading-text"><span class="btn-spinner"></span>AI 正在辨識收據...</div></div>';
   if(!state.apiKey){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:12px">⚠️ 請先在「設定」填入 Anthropic API Key</div>';return;}
   try{
-    const b64=await toBase64(file);const mtype=(file.type&&file.type!=='image/heic'&&file.type!=='image/heif')?file.type:'image/jpeg';
+    const {b64,mtype}=await toBase64ForScan(file);
     const receiptPrompt = `你是頂尖的日本收據辨識專家，精通日文、熟悉日本各類消費場所（超市、便利商店、餐廳、居酒屋、百貨公司、藥妝店）的商品與菜單。請逐字仔細辨識收據圖片中每個品項，給出最精確的繁體中文翻譯。
 
 【辨識原則】
@@ -2753,6 +2753,32 @@ async function handleFile(file){
   }catch(err){result.innerHTML='<div style="padding:13px;color:#EF4444;font-size:11px">❌ 辨識失敗：'+err.message+'</div>';}
 }
 function toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=()=>rej(new Error('讀取失敗'));r.readAsDataURL(file);});}
+
+// 送給 AI 前先把照片縮小。手機原圖轉成 base64 會膨脹約 1.33 倍，
+// 動輒超過 API 的 10MB 上限（實際遇過 8.2MB 的照片變成 11MB 被擋下）。
+// 1568px 是模型本身會把圖片縮到的邊長，先縮到這個尺寸不會損失辨識精度。
+const SCAN_MAX_EDGE = 1568;
+async function toBase64ForScan(file){
+  try{
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, SCAN_MAX_EDGE / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    bmp.close?.();
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    canvas.width = canvas.height = 0; // 盡早釋放記憶體
+    const b64 = dataUrl.split(',')[1];
+    if (!b64) throw new Error('轉檔結果為空');
+    return { b64, mtype: 'image/jpeg' };
+  }catch(e){
+    // 縮圖失敗（例如瀏覽器不支援該格式）就退回原本做法，維持原有行為
+    const b64 = await toBase64(file);
+    const mtype = (file.type && file.type !== 'image/heic' && file.type !== 'image/heif') ? file.type : 'image/jpeg';
+    return { b64, mtype };
+  }
+}
 let pendingReceipt=null, pendingReceiptFile=null;
 function showReceiptResult(data){
   pendingReceipt=data;
