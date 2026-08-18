@@ -2801,7 +2801,9 @@ async function toBase64ForScan(file){
     canvas.width = w; canvas.height = h;
     canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
     bmp.close?.();
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    // 品質 0.72：實測 0.85 會產生 1.1MB，光上傳就吃掉 4G 下的好幾秒。
+    // 解析度維持 1568px 不動 —— 對文字辨識而言解析度比壓縮品質重要得多。
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
     canvas.width = canvas.height = 0; // 盡早釋放記憶體
     const b64 = dataUrl.split(',')[1];
     if (!b64) throw new Error('轉檔結果為空');
