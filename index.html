@@ -987,37 +987,6 @@ const jsq = v => String(v ?? '')
   .replace(/</g, '\\x3C');     // 把 < 轉成跳脫碼，避免提前結束程式區塊
 const CATS=['餐飲','超市','交通','住宿','購物','門票','藥品','其他'];
 const PAYS=['現金','信用卡','PayPay','Suica','iD'];
-// 收據辨識的輸出格式：交給 API 強制驗證，模型不可能回傳非 JSON 或多餘的說明文字。
-// 分類與付款方式直接引用上面的常數，避免兩處各寫一份而走調。
-const RECEIPT_SCHEMA={
-  type:'object',
-  properties:{
-    store_name_zh:{type:'string'},
-    store_name_ja:{type:'string'},
-    date:{type:'string'},
-    category:{type:'string',enum:CATS},
-    tax_included:{type:'boolean'},
-    payment:{type:'string',enum:PAYS},
-    items:{type:'array',items:{
-      type:'object',
-      properties:{
-        name_zh:{type:'string'},
-        name_ja:{type:'string'},
-        price:{type:'number'},
-        quantity:{type:'number'},
-        tax_rate:{type:'number'}
-      },
-      required:['name_zh','name_ja','price','quantity','tax_rate'],
-      additionalProperties:false
-    }},
-    subtotal:{type:'number'},
-    discount:{type:'number'},
-    tax:{type:'number'},
-    total:{type:'number'}
-  },
-  required:['store_name_zh','store_name_ja','date','category','tax_included','payment','items','subtotal','discount','tax','total'],
-  additionalProperties:false
-};
 const EMOJIS=['😊','😎','🧑','👩','👦','👧','🧑‍💻','👩‍🦱','🧔','👱','🙋','🎒'];
 const CAT_COLORS=['#F59E0B','#3B82F6','#10B981','#EC4899','#8B5CF6','#EF4444','#6B7280'];
 const PAY_COLORS=['#22C55E','#3B82F6','#EC4899','#06B6D4','#F97316'];
@@ -2744,9 +2713,8 @@ async function handleFile(file){
 
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
 {"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:3000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mtype,data:b64}},{type:'text',text:receiptPrompt}]}]})});
     const data=await resp.json();if(data.error)throw new Error(data.error.message);
-    if(data.stop_reason==='max_tokens')throw new Error('收據品項太多，辨識結果被截斷，請分次拍攝');
     const parsed=JSON.parse(data.content.find(c=>c.type==='text')?.text.replace(/```json|```/g,'').trim());
     // 校正：若 sum(qty×price) 與基準金額不符，精準找出哪幾個品項的 price 是行小計
     if(parsed.items?.length){
