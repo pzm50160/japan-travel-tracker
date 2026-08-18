@@ -924,6 +924,21 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
   </div>
 </div>
 
+<!-- 收據品項：這項是誰的 -->
+<div class="modal-backdrop" id="itemOwnerModal">
+  <div class="modal">
+    <div class="modal-title">這項是誰的？</div>
+    <div id="itemOwnerName" style="font-size:12px;color:var(--text2);margin-bottom:12px"></div>
+    <div id="itemOwnerList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+    <label id="itemOwnerPaidWrap" style="display:none;align-items:center;gap:8px;padding:10px;background:var(--bg);border-radius:var(--radius-sm);margin-bottom:12px;cursor:pointer">
+      <input type="checkbox" id="itemOwnerPaid" style="width:18px;height:18px;flex-shrink:0">
+      <span style="font-size:12px">他已經把錢給我了（不列入分攤）</span>
+    </label>
+    <button class="btn-save" style="width:100%;margin-bottom:8px" onclick="confirmItemOwner()">確定</button>
+    <button class="btn-cancel" style="width:100%" onclick="document.getElementById('itemOwnerModal').classList.remove('open')">取消</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- GLOBAL ERROR DISPLAY -->
@@ -2752,7 +2767,8 @@ let pendingReceipt=null, pendingReceiptFile=null;
 function showReceiptResult(data){
   pendingReceipt=data;
   const defPayer=state.myMemberId||state.members[0]?.id;
-  data.items.forEach(it=>{ if(!it.payer_id) it.payer_id=defPayer; });
+  // 預設「這項是我的、我自己付」。要平分或算給別人，點頭像設定。
+  data.items.forEach(it=>{ if(!it.owner_id) it.owner_id=defPayer; if(it.settled===undefined) it.settled=false; });
   const validCats=['餐飲','超市','交通','住宿','購物','門票','藥品','其他'];
   const cat=validCats.includes(data.category)?data.category:'購物';
   pendingReceipt.category=cat;
@@ -2779,13 +2795,19 @@ function showReceiptResult(data){
     ?`<img src="${m.avatar_url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;border:2px solid var(--orange)">`
     :`<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--orange-light);border:2px solid var(--orange);display:flex;align-items:center;justify-content:center;font-size:${size*0.55}px">${m.emoji}</div>`;
   const itemRows=data.items.map((it,i)=>{
-    const payer=state.members.find(m=>m.id===it.payer_id)||state.members[0];
-    const payerHtml=payer?memberAvatarHtml(payer):'👤';
+    // owner_id：'ALL' 代表大家平分；否則是該成員 id。settled：他已把錢給我。
+    const owner=it.owner_id==='ALL'?null:(state.members.find(m=>m.id===it.owner_id)||state.members.find(m=>m.id===state.myMemberId));
+    const ownerHtml=it.owner_id==='ALL'
+      ? `<div style="width:28px;height:28px;border-radius:50%;background:var(--bg);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px">👥</div>`
+      : (owner?memberAvatarHtml(owner):'👤');
+    const tick=(it.owner_id!=='ALL'&&it.settled)
+      ? `<div style="position:absolute;right:-2px;bottom:-2px;width:14px;height:14px;border-radius:50%;background:var(--success);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--surface)">✓</div>`
+      : '';
     return `<div class="result-item" style="align-items:center">
       <div class="item-num">${i+1}</div>
       <div class="item-info"><div class="item-name">${it.name_zh}</div><div class="item-sub">${it.name_ja} · ${it.quantity||1}x ¥${it.price}</div></div>
       <div style="display:flex;align-items:center;gap:6px">
-        <div onclick="cycleItemPayer(${i})" style="cursor:pointer;flex-shrink:0" title="點擊切換付款人">${payerHtml}</div>
+        <div onclick="openItemOwner(${i})" style="cursor:pointer;flex-shrink:0;position:relative" title="點擊設定這項是誰的">${ownerHtml}${tick}</div>
         <div class="item-price">¥${((it.quantity||1)*it.price).toLocaleString()}</div>
       </div>
     </div>`;
@@ -2796,7 +2818,7 @@ function showReceiptResult(data){
     <div id="receiptCatBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${catBtns}</div>
     <div style="margin:8px 0 6px;font-size:11px;font-weight:600;color:var(--text2)">付款方式</div>
     <div id="receiptPayBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${payBtns}</div>
-    <div class="items-header"><span class="items-title">購買明細 <span style="font-size:10px;color:var(--text2);font-weight:400">點頭像換付款人</span></span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
+    <div class="items-header"><span class="items-title">購買明細 <span style="font-size:10px;color:var(--text2);font-weight:400">點頭像設定這項是誰的</span></span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
     ${itemRows}
     ${data._priceFixed?'<div style="padding:7px 11px;margin:6px 0;background:#FFF9E6;border:1.5px solid #F59E0B;border-radius:8px;font-size:11px;color:#92400E">⚠️ 偵測到金額已自動校正（行小計已換算為單價）</div>':''}
     ${data._totalMismatch?`<div style="padding:7px 11px;margin:6px 0;background:#FEF2F2;border:1.5px solid #EF4444;border-radius:8px;font-size:11px;color:#991B1B">⚠️ 品項合計 ¥${calcSum.toLocaleString()} 與${taxIncluded?'含稅合計':'小計'} ¥${refAmt.toLocaleString()} 不符，請手動確認</div>`:''}
@@ -2815,11 +2837,40 @@ function showReceiptResult(data){
     <div style="text-align:center;font-size:10px;color:var(--text3);padding:7px">儲存後同步給所有旅伴</div>
   </div>`;
 }
-function cycleItemPayer(idx){
+// ── 品項歸屬：這項是誰的 ──────────────────────────────────────
+// owner_id='ALL' → 全員平分；否則該成員自己負擔。
+// settled=true   → 他已把現金給我，等於他自己付，不進分攤。
+let itemOwnerIdx=null, itemOwnerPick=null;
+function openItemOwner(idx){
   if(!pendingReceipt||!state.members.length)return;
   const it=pendingReceipt.items[idx];
-  const curIdx=state.members.findIndex(m=>m.id===it.payer_id);
-  it.payer_id=state.members[(curIdx+1)%state.members.length].id;
+  itemOwnerIdx=idx; itemOwnerPick=it.owner_id||state.myMemberId;
+  document.getElementById('itemOwnerName').textContent=it.name_zh+' ¥'+((it.quantity||1)*it.price).toLocaleString();
+  document.getElementById('itemOwnerPaid').checked=!!it.settled;
+  renderItemOwnerList();
+  document.getElementById('itemOwnerModal').classList.add('open');
+}
+function renderItemOwnerList(){
+  const opts=[{id:'ALL',label:'👥 大家平分'}].concat(
+    state.members.map(m=>({id:m.id,label:(m.emoji||'🙂')+' '+m.name+(m.id===state.myMemberId?'（我）':'')})));
+  document.getElementById('itemOwnerList').innerHTML=opts.map(o=>{
+    const sel=o.id===itemOwnerPick;
+    return `<div onclick="pickItemOwner('${jsq(o.id)}')" style="padding:11px 12px;border-radius:var(--radius-sm);border:1.5px solid ${sel?'var(--orange)':'var(--border)'};background:${sel?'var(--orange-light)':'none'};font-size:13px;cursor:pointer;font-weight:${sel?'600':'400'}">${esc(o.label)}</div>`;
+  }).join('');
+  // 平分時沒有「誰欠誰」的問題，隱藏已收款選項
+  const wrap=document.getElementById('itemOwnerPaidWrap');
+  const isMe=itemOwnerPick===state.myMemberId;
+  wrap.style.display=(itemOwnerPick==='ALL'||isMe)?'none':'flex';
+}
+function pickItemOwner(id){ itemOwnerPick=id; renderItemOwnerList(); }
+function confirmItemOwner(){
+  if(itemOwnerIdx===null||!pendingReceipt)return;
+  const it=pendingReceipt.items[itemOwnerIdx];
+  it.owner_id=itemOwnerPick;
+  it.settled=(itemOwnerPick!=='ALL'&&itemOwnerPick!==state.myMemberId)
+    ? document.getElementById('itemOwnerPaid').checked : false;
+  document.getElementById('itemOwnerModal').classList.remove('open');
+  itemOwnerIdx=null;
   showReceiptResult(pendingReceipt);
 }
 function setPendingCat(cat,btn){
@@ -2856,12 +2907,16 @@ async function saveReceiptExpenses(){
     try{ photoUrl=await uploadToStorage(pendingReceiptFile,'receipts'); }catch(e){}
   }
   const _sUpload=performance.now();
-  // 依付款人分組
+  // 依「這項是誰的」分組。key 就是歸屬狀態，因為同一種歸屬可以合併成一筆帳：
+  //   ALL          → 全員平分
+  //   <成員id>     → 該成員自己負擔，我先幫他付（他欠我）
+  //   <成員id>|s   → 該成員自己負擔，且已把錢給我（等於他自己付，不影響餘額）
   const groups={};
   pendingReceipt.items.forEach(it=>{
-    const pid=it.payer_id||defPayer;
-    if(!groups[pid])groups[pid]=[];
-    groups[pid].push(it);
+    const owner=it.owner_id||defPayer;
+    const key=(owner!=='ALL'&&it.settled&&owner!==defPayer)?owner+'|s':owner;
+    if(!groups[key])groups[key]=[];
+    groups[key].push(it);
   });
   const now=Date.now();
   // 按比例分攤含稅合計到各付款人群組
@@ -2871,7 +2926,7 @@ async function saveReceiptExpenses(){
   // 先算每組的含稅金額（按品項小計比例）
   const groupAmts=[];
   let assigned=0;
-  entries.forEach(([pid,items],idx)=>{
+  entries.forEach(([key,items],idx)=>{
     const itemsSum=items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
     if(idx<entries.length-1){
       const a=grandSubtotal>0?Math.round(receiptTotal*(itemsSum/grandSubtotal)):Math.round(receiptTotal/entries.length);
@@ -2880,11 +2935,25 @@ async function saveReceiptExpenses(){
       groupAmts.push(receiptTotal-assigned); // 最後一組吸收捨入誤差
     }
   });
-  const exps=entries.map(([pid,items],idx)=>{
+  const exps=entries.map(([key,items],idx)=>{
+    const settled=key.endsWith('|s');
+    const owner=settled?key.slice(0,-2):key;
+    // ALL：我付、全員分攤；已收款：他付、他自己分攤；否則：我付、他自己分攤
+    const paidBy=(owner==='ALL')?defPayer:(settled?owner:defPayer);
+    const parts=(owner==='ALL')?{...defPart}:{[owner]:true};
     const amt=groupAmts[idx];
     const taxNote=pendingReceipt.tax&&entries.length===1?`\n含稅合計 ¥${receiptTotal.toLocaleString()}（稅 ¥${pendingReceipt.tax.toLocaleString()}${pendingReceipt.discount?' 折扣 −¥'+pendingReceipt.discount.toLocaleString():''}）`:'';
-    const notes=items.map(it=>`${it.name_zh} ¥${((it.quantity||1)*it.price).toLocaleString()}${(it.quantity||1)>1?' x'+(it.quantity||1):''}`).join('\n')+taxNote;
-    return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:pid,split_mode:'equal',participants:{...defPart},trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
+    // 數量大於 1 時寫成「單價×數量 = 小計」。
+    // 原本寫成「¥小計 x數量」會被誤讀成「單價 x 數量」——例如單價 278 買 2 個，
+    // 小計 556 會顯示成「¥556 x2」，看起來像 1,112。
+    const notes=items.map(it=>{
+      const q=it.quantity||1;
+      const lineTotal=(q*it.price).toLocaleString();
+      return q>1
+        ? `${it.name_zh} ¥${it.price.toLocaleString()}×${q} = ¥${lineTotal}`
+        : `${it.name_zh} ¥${lineTotal}`;
+    }).join('\n')+taxNote;
+    return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:paidBy,split_mode:'equal',participants:parts,trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
   });
   await sb.from('expenses').insert(exps);
   const _sInsert=performance.now();
