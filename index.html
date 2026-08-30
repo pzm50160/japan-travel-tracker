@@ -2137,7 +2137,11 @@ function expenseHTML(e) {
   const subAmt = e.currency==='TWD'
     ? `（直接台幣）`
     : `≈ NT$${Math.round(twdAmt).toLocaleString()}`;
-  const photoBtn = e.photo_url ? `<div style="margin-top:5px;background:#f0f0f0;border-radius:6px;overflow:hidden;text-align:center"><img src="${e.photo_url}" style="max-width:100%;max-height:320px;object-fit:contain;display:block;margin:0 auto;cursor:pointer;image-orientation:from-image" onclick="event.stopPropagation();showPhotoModal('${e.photo_url}')"></div>` : '';
+  // 收據照片不在列表直接展開（整張 320px 會讓紀錄很難滑），改成一個小標籤，
+  // 點標籤直接看大圖；點整列進編輯視窗裡也看得到。
+  const photoTag = e.photo_url
+    ? `<span class="tag" style="cursor:pointer;background:var(--orange-light);color:var(--orange)" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')">📷 收據</span>`
+    : '';
   return `<div class="expense-row" onclick="openEditModal('${e.id}')">
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
@@ -2147,8 +2151,8 @@ function expenseHTML(e) {
         <span class="tag tag-split">${splitLabel}</span>
         <span class="tag-pay">${esc(e.pay)}</span>
         ${e.store?'<span class="tag-store">'+esc(e.store)+'</span>':''}
+        ${photoTag}
       </div>
-      ${photoBtn}
       ${e.notes ? `<div style="margin-top:5px;font-size:10px;color:var(--text3);background:var(--bg);border-radius:6px;padding:6px 8px;white-space:pre-line;line-height:1.6">📋 ${esc(e.notes)}</div>` : ''}
     </div>
     <div class="expense-right">
