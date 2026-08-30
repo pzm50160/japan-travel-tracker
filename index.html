@@ -211,7 +211,7 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 /* MODAL */
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
 .modal-backdrop.open{display:flex}
-.modal{background:var(--surface);border-radius:18px 18px 0 0;padding:17px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;touch-action:pan-y}
+.modal{background:var(--surface);border-radius:18px 18px 0 0;padding:17px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;overflow-x:hidden;touch-action:pan-y;overscroll-behavior-x:none}
 .modal-title{font-size:16px;font-weight:700;margin-bottom:13px}
 .form-group{margin-bottom:11px}
 .form-label{font-size:12px;color:var(--text2);margin-bottom:4px;display:block;font-weight:500}
@@ -1004,6 +1004,16 @@ function dataUrlToBlob(dataUrl) {
 // 取得「本地時區」的今天日期（YYYY-MM-DD）
 // 不可用 toISOString()，那是 UTC —— 台灣凌晨 0~8 點會取到前一天
 const todayStr = () => new Date().toLocaleDateString('en-CA');
+// 同一天內的排序值＝當天分鐘數（0~1439）。掃描用收據上的時間，手動記帳用當下時間。
+const minsOfDay = (hhmm) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec((hhmm||'').trim());
+  if (!m) return null;
+  const h=+m[1], mi=+m[2];
+  return (h>=0&&h<24&&mi>=0&&mi<60) ? h*60+mi : null;
+};
+const nowMins = () => { const d=new Date(); return d.getHours()*60+d.getMinutes(); };
+const fmtMins = (v) => (v==null||isNaN(v)) ? '' :
+  String(Math.floor(v/60)).padStart(2,'0')+':'+String(Math.floor(v%60)).padStart(2,'0');
 function uid(prefix) {
   const r = (crypto.randomUUID ? crypto.randomUUID().slice(0,8)
                                : Math.random().toString(36).slice(2,10));
@@ -2132,6 +2142,14 @@ function expenseHTML(e) {
   else pps=Object.entries(e.participants||{}).filter(([,v])=>v).map(([id])=>memberOf(id));
   const avs = pps.slice(0,5).map(m=>`<div class="payer-av">${memberAvatar(m)}</div>`).join('');
   const splitLabel = e.split_mode==='payer'?'自付':e.split_mode==='custom'?'自訂':'平分 '+pps.length+'人';
+  // 誰分攤、各分多少（統一顯示台幣，跟分攤頁的計算一致）
+  const shares = getShares(e);
+  const shareLine = Object.entries(shares).filter(([,v])=>v>0.5).map(([mid,v])=>{
+    const m=state.members.find(x=>x.id===mid);
+    return `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--bg);border-radius:20px;padding:2px 7px 2px 3px;font-size:10px;color:var(--text2)">
+      <span style="width:16px;height:16px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:9px;background:var(--surface)">${m?memberAvatar(m):'👤'}</span>
+      ${m?esc(m.name):'？'} NT$${Math.round(v).toLocaleString()}</span>`;
+  }).join('');
   // 主要金額：顯示原始幣別
   const dispAmt = e.currency==='TWD'
     ? `NT$${Math.round(e.amount).toLocaleString()}`
@@ -2149,7 +2167,15 @@ function expenseHTML(e) {
     : isScanned
       ? `<span class="tag" style="cursor:pointer;background:var(--orange-light);color:var(--orange)" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')">📷 收據</span>`
       : `<img src="${e.photo_url}" loading="lazy" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:pointer;border:1px solid var(--border);image-orientation:from-image">`;
-  return `<div class="expense-row" onclick="openEditModal('${e.id}')">
+  const timeTxt = fmtMins(e.sort_order);
+  const inSort = sortingDate===e.date;
+  return `<div class="expense-row" onclick="${inSort?'':`openEditModal('${e.id}')`}"
+    ontouchstart="startPressSort('${e.id}','${e.date}')" ontouchend="cancelPressSort()" ontouchmove="cancelPressSort()"
+    onmousedown="startPressSort('${e.id}','${e.date}')" onmouseup="cancelPressSort()" onmouseleave="cancelPressSort()">
+    ${inSort?`<div style="display:flex;flex-direction:column;gap:4px;margin-right:6px">
+      <button onclick="event.stopPropagation();moveExpense('${e.id}',-1)" style="width:30px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px">▲</button>
+      <button onclick="event.stopPropagation();moveExpense('${e.id}',1)" style="width:30px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px">▼</button>
+    </div>`:''}
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
       <div class="expense-name">${esc(e.name)}</div>
@@ -2159,7 +2185,9 @@ function expenseHTML(e) {
         <span class="tag-pay">${esc(e.pay)}</span>
         ${e.store?'<span class="tag-store">'+esc(e.store)+'</span>':''}
         ${isScanned?photoTag:''}
+        ${timeTxt?`<span class="tag" style="background:var(--bg);color:var(--text3)">🕐 ${timeTxt}</span>`:''}
       </div>
+      ${shareLine?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${shareLine}</div>`:''}
       ${isScanned?'':photoTag}
     </div>
     <div class="expense-right">
@@ -2174,6 +2202,40 @@ function expenseHTML(e) {
 
 // ─── RECORDS ──────────────────────────────────────────────────────────────────
 function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
+// ── 同一天內手動調整順序 ────────────────────────────────
+// 長按任一筆進入該日的排序模式，用 ▲▼ 移動；寫入相鄰兩筆的中間值，
+// 所以不必重新編號整天的資料。
+let sortingDate=null, pressTimer=null;
+function startPressSort(id,date){
+  cancelPressSort();
+  pressTimer=setTimeout(()=>{
+    pressTimer=null;
+    if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
+    sortingDate=date; renderRecords();
+    showToast('排序模式：用 ▲▼ 調整，完成後按「完成排序」');
+  },600);
+}
+function cancelPressSort(){ if(pressTimer){clearTimeout(pressTimer);pressTimer=null;} }
+function exitSortMode(){ sortingDate=null; renderRecords(); }
+async function moveExpense(id,dir){
+  const day=state.expenses.filter(e=>e.date===sortingDate)
+    .sort((a,b)=>((a.sort_order??Infinity)-(b.sort_order??Infinity)));
+  const i=day.findIndex(e=>e.id===id);
+  const j=i+dir;
+  if(i<0||j<0||j>=day.length) return;
+  // 目標位置的前後兩筆，取中間值插進去
+  const target=day[j];
+  const beyond=day[j+dir];
+  const a=target.sort_order??(j*10);
+  const b=beyond?(beyond.sort_order??(a+20)):(dir>0?a+20:a-20);
+  const val=(a+b)/2;
+  const me=state.expenses.find(e=>e.id===id);
+  me.sort_order=val;
+  renderRecords();
+  const { error } = await sb.from('expenses').update({sort_order:val}).eq('id',id);
+  if(error){ showToast('順序儲存失敗：'+error.message); }
+}
+
 function renderRecords() {
   // 搜尋：比對名稱、店名、備註（品項明細在裡面）、分類、付款方式、日期、金額
   const q = (document.getElementById('recSearchInput')?.value || '').trim().toLowerCase();
@@ -2186,18 +2248,25 @@ function renderRecords() {
   const cont = document.getElementById('recordsList');
   if (!state.expenses.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>還沒有記錄</div></div>'; return; }
   if (!list.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div>找不到符合「'+esc(q)+'」的記錄</div></div>'; return; }
-  const sorted = [...list].sort((a,b)=>b.date.localeCompare(a.date));
+  const sortBar = sortingDate
+    ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:10px;font-size:12px;color:#B45309">
+         <span>調整 ${sortingDate} 的順序</span>
+         <button onclick="exitSortMode()" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit">完成排序</button>
+       </div>` : '';
+  // 日期新到舊；同一天內依 sort_order（當天分鐘數）由早到晚，沒有值的排最後
+  const ord = e => (e.sort_order==null||isNaN(e.sort_order)) ? Infinity : Number(e.sort_order);
+  const sorted = [...list].sort((a,b)=> b.date.localeCompare(a.date) || ord(a)-ord(b));
   const days = ['日','一','二','三','四','五','六'];
   const grpHdr = (label, exps) => `<div class="date-header"><span class="date-label">${label}</span><span class="date-total">${fmtDual(sumJPY(exps),sumTWD(exps))}</span></div>`;
   if (recTab==='date') {
     const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
-    cont.innerHTML = Object.entries(byDate).map(([date,exps])=>{
+    cont.innerHTML = sortBar + Object.entries(byDate).map(([date,exps])=>{
       const d=new Date(date+'T00:00:00');
       return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
-    cont.innerHTML = Object.entries(byCat).sort((a,b)=>sumTWD(b[1])-sumTWD(a[1])).map(([cat,exps])=>{
+    cont.innerHTML = sortBar + Object.entries(byCat).sort((a,b)=>sumTWD(b[1])-sumTWD(a[1])).map(([cat,exps])=>{
       return `<div class="date-group">${grpHdr(cat,exps)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   } else {
@@ -2453,6 +2522,7 @@ function openAddModal() {
   state.editId = null;
   state.selectedPayer = state.myMemberId || state.members[0]?.id;
   state.selectedCat='餐飲'; state.selectedPay='現金'; state.splitMode='equal';
+  state.viewOnly = false;
   state.participants = {}; state.members.forEach(m=>{state.participants[m.id]=true;});
   state.currency = 'JPY'; state.pendingPhotoBase64 = null; state.pendingPhotoUrl = null; state.lockedShares = {};
   document.getElementById('modalTitle').textContent = '新增花費';
@@ -2523,6 +2593,12 @@ function openEditModal(id) {
   document.getElementById('paySelect').style.pointerEvents = isOwner ? '' : 'none';
   document.querySelectorAll('.split-mode-btn').forEach(b => b.disabled = !isOwner);
   document.getElementById('saveBtn').style.display = isOwner ? '' : 'none';
+  // 唯讀時把「刪除照片」「自訂金額輸入」也一併鎖住（原本這兩個沒鎖，
+  // 封存的旅程還是點得動，只是最後存不進去）
+  state.viewOnly = !isOwner;
+  document.querySelectorAll('#addModal .participant-row input').forEach(i=>i.disabled=!isOwner);
+  const clearBtn=document.querySelector('#photoPreviewWrap button');
+  if(clearBtn) clearBtn.style.display = isOwner ? '' : 'none';
   // 提示非發起人
   let notice = document.getElementById('ownerNotice');
   if (!notice) {
@@ -2606,7 +2682,10 @@ function renderParticipants(){
   checkEl.className='split-total-check '+(ok?'ok':'err');
   document.getElementById('splitTotalVal').textContent=fmtCur(customTotal)+' / '+fmtCur(amt);
 }
-function togglePart(id){state.participants[id]=!state.participants[id];renderParticipants();}
+function togglePart(id){
+  if(state.viewOnly){ showToast('唯讀模式：無法修改分攤'); return; }
+  state.participants[id]=!state.participants[id];renderParticipants();
+}
 function lockShare(id,val){if(!val&&val!=='0')return;if(!state.lockedShares)state.lockedShares={};state.lockedShares[id]=parseFloat(val)||0;renderParticipants();}
 function unlockShare(id){if(state.lockedShares)delete state.lockedShares[id];renderParticipants();}
 function updateSplitDisplay(){
@@ -2638,6 +2717,7 @@ async function saveExpense() {
     }
     const exp = {
       name,
+      ...(state.editId ? {} : { sort_order: nowMins() }), // 新增才給排序值，編輯不動原本的順序
       amount: rawAmt,          // 原始金額（日圓或台幣）
       amount_original: rawAmt, // 同上，備用
       amount_twd: amountTWD,   // 統一台幣，供分攤/統計用
@@ -3000,6 +3080,8 @@ async function saveReceiptExpenses(){
     groups[key].push(it);
   });
   const now=Date.now();
+  // 排序值：優先用收據上印的時間，讀不到就用當下時間
+  const receiptMins = minsOfDay(pendingReceipt.time) ?? nowMins();
   // 按比例分攤含稅合計到各付款人群組
   const allSubtotal=pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
   const grandSubtotal=included.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
@@ -3039,7 +3121,7 @@ async function saveReceiptExpenses(){
         ? `${it.name_zh} ¥${it.price.toLocaleString()}×${q} = ¥${lineTotal}`
         : `${it.name_zh} ¥${lineTotal}`;
     }).join('\n')+taxNote;
-    return{id:'exp_'+(now+idx),name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:paidBy,split_mode:'equal',participants:parts,trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
+    return{id:'exp_'+(now+idx),sort_order:receiptMins,name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:paidBy,split_mode:'equal',participants:parts,trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
   });
   await sb.from('expenses').insert(exps);
   const _sInsert=performance.now();
@@ -3161,6 +3243,7 @@ function handlePhotoSelect(file) {
   reader.readAsDataURL(file);
 }
 function clearPhoto() {
+  if(state.viewOnly){ showToast('唯讀模式：無法刪除照片'); return; }
   state.pendingPhotoBase64 = null;
   state.pendingPhotoFile = null;
   state.pendingPhotoUrl = null;

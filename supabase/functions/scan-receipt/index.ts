@@ -103,8 +103,13 @@ const RECEIPT_PROMPT = `你是頂尖的日本收據辨識專家，精通日文�
 - "iD" → payment:"iD"（iD、QUICPay等電子錢包）
 - 無法判斷 → payment:"現金"（預設）
 
+【日期與時間】
+- date 只取收據上明確印出的購買日期，不要從交易編號、電話號碼、商品編號或條碼推測
+- 若收據上沒有明確年份，用今年；完全讀不到日期就填空字串
+- time 取收據上印的交易時間（24 小時制 HH:MM，例如 12:38）；讀不到就填空字串
+
 【輸出格式】只回傳 JSON，不要任何說明文字或 markdown 符號：
-{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
+{"store_name_zh":"店名（繁體中文）","store_name_ja":"店名（日文原文）","date":"YYYY-MM-DD","time":"HH:MM或空字串","category":"餐飲或超市或購物或交通或住宿或門票或藥品或其他","tax_included":true或false,"payment":"現金或信用卡或PayPay或Suica或iD","items":[{"name_zh":"品項繁中譯名","name_ja":"日文原文","price":單品單價數字,"quantity":數量數字,"tax_rate":8或10}],"subtotal":小計數字,"discount":折扣合計數字,"tax":稅金數字,"total":含稅合計數字}`;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
