@@ -2141,12 +2141,14 @@ function expenseHTML(e) {
   const subAmt = e.currency==='TWD'
     ? `（直接台幣）`
     : `≈ NT$${Math.round(twdAmt).toLocaleString()}`;
-  // 列表只留標頭、標籤與金額；照片與品項明細都在點進去的視窗裡看。
-  // 這裡只用兩個小圖示標示「有照片」「有明細」，讓列表可以快速滑。
-  const marks = (e.photo_url?'📷':'') + (e.notes?'📋':'');
-  const photoTag = marks
-    ? `<span style="font-size:11px;color:var(--text3);margin-left:4px">${marks}</span>`
-    : '';
+  // 掃描的收據不在列表展開（一天掃好幾張會滑不完），改成標籤，點了看大圖；
+  // 自己拍的照片（食物、戰利品）維持縮圖直接看得到。
+  // 怎麼分辨：掃描存檔一定會把品項明細寫進備註（含「¥」），手動記帳幾乎不會。
+  const isScanned = /¥/.test(e.notes||'');
+  const photoTag = !e.photo_url ? ''
+    : isScanned
+      ? `<span class="tag" style="cursor:pointer;background:var(--orange-light);color:var(--orange)" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')">📷 收據</span>`
+      : `<img src="${e.photo_url}" loading="lazy" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:pointer;border:1px solid var(--border);image-orientation:from-image">`;
   return `<div class="expense-row" onclick="openEditModal('${e.id}')">
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
@@ -2156,8 +2158,9 @@ function expenseHTML(e) {
         <span class="tag tag-split">${splitLabel}</span>
         <span class="tag-pay">${esc(e.pay)}</span>
         ${e.store?'<span class="tag-store">'+esc(e.store)+'</span>':''}
-        ${photoTag}
+        ${isScanned?photoTag:''}
       </div>
+      ${isScanned?'':photoTag}
     </div>
     <div class="expense-right">
       <div class="amount-jpy">${dispAmt}</div>
@@ -2503,7 +2506,11 @@ function openEditModal(id) {
   document.getElementById('mStore').value = e.store||'';
   document.getElementById('mNotes').value = e.notes||'';
   if (e.photo_url) {
-    document.getElementById('photoPreview').src = e.photo_url;
+    const pv = document.getElementById('photoPreview');
+    pv.src = e.photo_url;
+    // 點縮圖可放大看，收據上的小字才看得清楚
+    pv.style.cursor = 'zoom-in';
+    pv.onclick = () => showPhotoModal(e.photo_url);
     document.getElementById('photoPreviewWrap').style.display = 'block';
   } else {
     document.getElementById('photoPreviewWrap').style.display = 'none';
@@ -2734,6 +2741,15 @@ async function handleFile(file){
         if(!fixed){ parsed._totalMismatch=true; parsed._calcSum=calcSum; parsed._refAmt=refAmt; }
       }
     }
+    // 日期防呆：AI 有時會把交易編號、電話或商品編號誤讀成日期
+    // （實際發生過 2021-08-24、2014-08-18）。離今天超過一年就改成今天並提示確認。
+    const today=todayStr();
+    const parsedDay=/^\d{4}-\d{2}-\d{2}$/.test(parsed.date||'')?parsed.date:null;
+    const daysOff=parsedDay?Math.abs((new Date(parsedDay)-new Date(today))/86400000):Infinity;
+    if(!parsedDay||daysOff>365){
+      parsed._dateFixed=parsed.date||'（沒讀到）';
+      parsed.date=today;
+    }
     showReceiptResult(parsed);
     // 【暫時】把量測結果固定顯示在畫面上，方便截圖；查清楚後連同上面的計時一起移除
     if(window._scanTiming){const t=window._scanTiming;
@@ -2847,6 +2863,7 @@ function showReceiptResult(data){
     <div id="receiptPayBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${payBtns}</div>
     <div class="items-header"><span class="items-title">購買明細 <span style="font-size:10px;color:var(--text2);font-weight:400">點頭像設定這項是誰的</span></span><button class="add-item-btn" onclick="addItemToReceipt()">+ 新增品項</button></div>
     ${itemRows}
+    ${data._dateFixed?`<div style="padding:7px 11px;margin:6px 0;background:#FFF9E6;border:1.5px solid #F59E0B;border-radius:8px;font-size:11px;color:#92400E">⚠️ 收據日期辨識為 ${esc(data._dateFixed)}，看起來不合理，已改成今天 ${data.date}。存檔後可在該筆記錄裡修改。</div>`:''}
     ${data._priceFixed?'<div style="padding:7px 11px;margin:6px 0;background:#FFF9E6;border:1.5px solid #F59E0B;border-radius:8px;font-size:11px;color:#92400E">⚠️ 偵測到金額已自動校正（行小計已換算為單價）</div>':''}
     ${data._totalMismatch?`<div style="padding:7px 11px;margin:6px 0;background:#FEF2F2;border:1.5px solid #EF4444;border-radius:8px;font-size:11px;color:#991B1B">⚠️ 品項合計 ¥${calcSum.toLocaleString()} 與${taxIncluded?'含稅合計':'小計'} ¥${refAmt.toLocaleString()} 不符，請手動確認</div>`:''}
     <div style="padding:9px 12px;margin:8px 0 4px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text2);display:flex;flex-direction:column;gap:3px">
