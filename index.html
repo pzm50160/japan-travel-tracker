@@ -792,7 +792,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 <!-- ADD/EDIT MODAL -->
 <div class="modal-backdrop" id="addModal">
   <div class="modal">
-    <div class="modal-title" id="modalTitle">新增花費</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:13px">
+      <div class="modal-title" id="modalTitle" style="margin-bottom:0;flex:1">新增花費</div>
+      <button onclick="closeModal()" title="關閉" style="flex-shrink:0;background:none;border:none;color:var(--text3);font-size:19px;line-height:1;cursor:pointer;padding:2px 4px;font-family:inherit">✕</button>
+    </div>
     <div class="form-group"><label class="form-label">付款人（誰出錢）</label><div class="avatar-select" id="modalPayerSelect"></div></div>
     <div class="form-group"><label class="form-label">消費項目</label><input class="form-input" id="mName" placeholder="例：咖啡、麵包"></div>
     <!-- 金額 + 幣別 -->
@@ -807,7 +810,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:5px" id="amtConvert"></div>
     </div>
-    <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="mDate" type="date"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">日期</label><input class="form-input" id="mDate" type="date"></div>
+      <div class="form-group"><label class="form-label">時間（選填）</label><input class="form-input" id="mTime" type="time"></div>
+    </div>
     <div class="form-group"><label class="form-label">類別</label><div class="select-grid" id="catSelect"></div></div>
     <div class="form-group"><label class="form-label">支付方式</label><div class="select-grid" id="paySelect"></div></div>
     <div class="form-group"><label class="form-label">店家（選填）</label><input class="form-input" id="mStore" placeholder="例：7-Eleven"></div>
@@ -2167,13 +2173,11 @@ function expenseHTML(e) {
     : isScanned
       ? `<span class="tag" style="cursor:pointer;background:var(--orange-light);color:var(--orange)" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')">📷 收據</span>`
       : `<img src="${e.photo_url}" loading="lazy" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:pointer;border:1px solid var(--border);image-orientation:from-image">`;
-  const timeTxt = fmtMins(e.sort_order);
+  // 時間只認 time_min（收據上印的、或自己填的）；sort_order 純粹是排序位置，不是時間
+  const timeTxt = fmtMins(e.time_min);
   const inSort = sortingDate===e.date;
-  return `<div class="expense-row" onclick="${inSort?'':`openEditModal('${e.id}')`}">
-    ${inSort?`<div style="display:flex;flex-direction:column;gap:4px;margin-right:6px">
-      <button onclick="event.stopPropagation();moveExpense('${e.id}',-1)" style="width:30px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px">▲</button>
-      <button onclick="event.stopPropagation();moveExpense('${e.id}',1)" style="width:30px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px">▼</button>
-    </div>`:''}
+  return `<div class="expense-row" data-id="${e.id}" onclick="${inSort?'':`openEditModal('${e.id}')`}">
+    ${inSort?`<div onpointerdown="startSortDrag(event,this)" title="按住上下拖曳" style="touch-action:none;cursor:grab;flex-shrink:0;padding:10px 7px;margin:-10px -2px -10px -5px;color:var(--text3);font-size:15px;line-height:1;user-select:none;-webkit-user-select:none">☰</div>`:''}
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
       <div class="expense-name">${esc(e.name)}</div>
@@ -2184,6 +2188,7 @@ function expenseHTML(e) {
         ${e.store?'<span class="tag-store">'+esc(e.store)+'</span>':''}
         ${isScanned?photoTag:''}
         ${timeTxt?`<span class="tag" style="background:var(--bg);color:var(--text3)">🕐 ${timeTxt}</span>`:''}
+        ${e.sort_manual?`<span class="tag" style="background:var(--bg);color:var(--text3)" title="這筆的位置是手動拖出來的">↕ 手動</span>`:''}
       </div>
       ${shareLine?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${shareLine}</div>`:''}
       ${isScanned?'':photoTag}
@@ -2201,33 +2206,157 @@ function expenseHTML(e) {
 // ─── RECORDS ──────────────────────────────────────────────────────────────────
 function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
 // ── 同一天內手動調整順序 ────────────────────────────────
-// 長按任一筆進入該日的排序模式，用 ▲▼ 移動；寫入相鄰兩筆的中間值，
-// 所以不必重新編號整天的資料。
+// 按日期標題的「⇅ 排序」進入該日的排序模式，按住每列左邊的 ☰ 上下拖曳。
+// 位置存 sort_order、真實時間存 time_min，兩者分開：拖曳只動位置不動時間，
+// 被拖過的那筆記 sort_manual=true（列表標 ↕），代表它的位置以手動的為準。
 let sortingDate=null;
+// 「按日期」分頁的每一天預設收起來，點標題才展開。展開狀態只放在記憶體，
+// 重新整理就全部收回去（一趟旅程天數不多，不值得為它存 localStorage）。
+let expandedDays = new Set();
+function toggleDay(date){
+  if(expandedDays.has(date)) expandedDays.delete(date);
+  else expandedDays.add(date);
+  renderRecords();
+}
 function toggleSortMode(date){
   if(sortingDate===date){ sortingDate=null; renderRecords(); return; }
   if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
-  sortingDate=date; renderRecords();
-  showToast('用 ▲▼ 調整順序，完成後按「完成排序」');
+  sortingDate=date; expandedDays.add(date); renderRecords();   // 排序中的那天一定要看得到
+  showToast('按住左邊的 ☰ 上下拖曳，完成後按「完成排序」');
 }
 function exitSortMode(){ sortingDate=null; renderRecords(); }
-async function moveExpense(id,dir){
-  const day=state.expenses.filter(e=>e.date===sortingDate)
-    .sort((a,b)=>((a.sort_order??Infinity)-(b.sort_order??Infinity)));
-  const i=day.findIndex(e=>e.id===id);
-  const j=i+dir;
-  if(i<0||j<0||j>=day.length) return;
-  // 目標位置的前後兩筆，取中間值插進去
-  const target=day[j];
-  const beyond=day[j+dir];
-  const a=target.sort_order??(j*10);
-  const b=beyond?(beyond.sort_order??(a+20)):(dir>0?a+20:a-20);
-  const val=(a+b)/2;
-  const me=state.expenses.find(e=>e.id===id);
-  me.sort_order=val;
+
+// 排序值：沒有值的排最後。不能直接把兩個 Infinity 相減（會變 NaN，排序結果會亂跳）
+const ordVal = e => (e.sort_order==null||isNaN(e.sort_order)) ? Infinity : Number(e.sort_order);
+function byOrder(a,b){
+  const x=ordVal(a), y=ordVal(b);
+  if(x===y) return 0;
+  if(x===Infinity) return 1;
+  if(y===Infinity) return -1;
+  return x-y;
+}
+
+// ── 拖曳排序 ──
+// 用 pointer 事件（手機觸控、電腦滑鼠同一套）；把手上的 touch-action:none
+// 才不會拖到一半變成整頁捲動。拖的時候直接搬 DOM，放開才算值、才寫資料庫。
+let dragSort=null;
+function startSortDrag(ev, handle){
+  if(!sortingDate) return;
+  ev.preventDefault(); ev.stopPropagation();
+  const row = handle.closest('.expense-row');
+  if(!row) return;
+  dragSort = { row, cont: row.parentElement, base: ev.clientY, dy: 0, lastY: ev.clientY, raf: 0 };
+  row.style.position='relative'; row.style.zIndex='20';
+  row.style.boxShadow='0 6px 16px rgba(0,0,0,.18)';
+  row.style.borderColor='var(--orange)';
+  handle.style.cursor='grabbing';
+  document.body.style.userSelect='none';
+  try{ handle.setPointerCapture(ev.pointerId); }catch(_){}
+  handle.onpointermove = moveSortDrag;
+  handle.onpointerup = endSortDrag;
+  handle.onpointercancel = endSortDrag;
+  dragSort.raf = requestAnimationFrame(autoScrollSortDrag);
+}
+function moveSortDrag(ev){
+  if(!dragSort) return;
+  ev.preventDefault();
+  dragSort.lastY = ev.clientY;
+  dragSort.dy = ev.clientY - dragSort.base;
+  dragSort.row.style.transform = 'translateY('+dragSort.dy+'px)';
+  swapIfPassed();
+}
+// 拖過相鄰那列的中線就跟它對調。對調後這一列的版面位置會變，
+// 所以要把基準點跟著補回去，畫面上才不會跳一下。
+function swapIfPassed(){
+  const d=dragSort, row=d.row;
+  for(let guard=0; guard<50; guard++){
+    const r = row.getBoundingClientRect();
+    const mid = r.top + r.height/2;
+    const prev = row.previousElementSibling, next = row.nextElementSibling;
+    let dir=0, other=null;
+    if(prev && prev.classList.contains('expense-row')){
+      const pr=prev.getBoundingClientRect();
+      if(mid < pr.top + pr.height/2){ dir=-1; other=prev; }
+    }
+    if(!dir && next && next.classList.contains('expense-row')){
+      const nr=next.getBoundingClientRect();
+      if(mid > nr.top + nr.height/2){ dir=1; other=next; }
+    }
+    if(!dir) return;
+    const visualTop = r.top;
+    d.cont.insertBefore(row, dir<0 ? other : other.nextSibling);
+    row.style.transform='';
+    d.dy = visualTop - row.getBoundingClientRect().top;
+    d.base = d.lastY - d.dy;
+    row.style.transform='translateY('+d.dy+'px)';
+  }
+}
+// 拖到畫面上下緣時自動捲動，一天筆數多也不必分好幾次拖
+function autoScrollSortDrag(){
+  if(!dragSort) return;
+  const y=dragSort.lastY, h=window.innerHeight, edge=90;
+  let step=0;
+  if(y<edge) step = -Math.min(14, (edge-y)/4);
+  else if(y>h-edge) step = Math.min(14, (y-(h-edge))/4);
+  if(step){
+    const before=window.scrollY;
+    window.scrollBy(0, step);
+    const moved=window.scrollY-before;
+    if(moved){
+      dragSort.base -= moved;
+      dragSort.dy = dragSort.lastY - dragSort.base;
+      dragSort.row.style.transform='translateY('+dragSort.dy+'px)';
+      swapIfPassed();
+    }
+  }
+  dragSort.raf = requestAnimationFrame(autoScrollSortDrag);
+}
+function endSortDrag(ev){
+  if(!dragSort) return;
+  const { row, cont, raf } = dragSort;
+  cancelAnimationFrame(raf);
+  dragSort=null;
+  row.style.transform=''; row.style.boxShadow=''; row.style.zIndex=''; row.style.position=''; row.style.borderColor='';
+  document.body.style.userSelect='';
+  const handle=ev.currentTarget;
+  if(handle){ handle.onpointermove=handle.onpointerup=handle.onpointercancel=null; handle.style.cursor='grab'; }
+  saveDayOrder([...cont.querySelectorAll('.expense-row')].map(r=>r.dataset.id), row.dataset.id);
+}
+// 依畫面上的最終順序寫回 sort_order。順序沒問題的那幾筆完全不動；被拖的那筆、
+// 還有原本沒有排序值的那些，才用前後鄰居內插出一個值插進去。
+async function saveDayOrder(ids, movedId){
+  const day = ids.map(id=>state.expenses.find(e=>e.id===id)).filter(Boolean);
+  if(!day.length) return;
+  const val = e => (e.sort_order==null||isNaN(e.sort_order)) ? null : Number(e.sort_order);
+  // 錨點＝維持不動的那幾筆（有排序值、不是剛被拖的、而且由早到晚遞增）
+  const anchor = new Array(day.length).fill(false);
+  let last=-Infinity;
+  day.forEach((e,i)=>{ const v=val(e); if(e.id!==movedId && v!=null && v>last){ anchor[i]=true; last=v; } });
+  const updates=[];
+  for(let i=0;i<day.length;i++){
+    if(anchor[i]) continue;
+    const lo = i>0 ? Number(day[i-1].sort_order) : null;   // 前一筆此時已經定案
+    let hiIdx=-1;
+    for(let k=i+1;k<day.length;k++){ if(anchor[k]){ hiIdx=k; break; } }
+    const hi = hiIdx>=0 ? Number(day[hiIdx].sort_order) : null;
+    let v;
+    if(lo!=null && hi!=null && hi>lo) v = lo + (hi-lo)/(hiIdx-i+1);
+    else if(lo!=null) v = lo + 1;
+    else if(hi!=null) v = hi - (hiIdx-i);
+    else v = 720 + i;                    // 整天都沒排序值：從中午起編，純粹用來排序
+    day[i].sort_order = v;
+    updates.push({ id: day[i].id, v });
+  }
+  // 只有被拖的那筆算「手動排過」；其他只是順手補上排序值，不標 ↕
+  const moved = day.find(e=>e.id===movedId);
+  if(moved) moved.sort_manual = true;
   renderRecords();
-  const { error } = await sb.from('expenses').update({sort_order:val}).eq('id',id);
-  if(error){ showToast('順序儲存失敗：'+error.message); }
+  if(!updates.length) return;
+  const res = await Promise.all(updates.map(u=>sb.from('expenses')
+    .update(u.id===movedId ? {sort_order:u.v, sort_manual:true} : {sort_order:u.v})
+    .eq('id',u.id)));
+  const bad = res.find(r=>r.error);
+  if(bad) showToast('順序儲存失敗：'+bad.error.message);
 }
 
 function renderRecords() {
@@ -2244,23 +2373,26 @@ function renderRecords() {
   if (!list.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div>找不到符合「'+esc(q)+'」的記錄</div></div>'; return; }
   const sortBar = sortingDate
     ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:10px;font-size:12px;color:#B45309">
-         <span>調整 ${sortingDate} 的順序</span>
+         <span>調整 ${sortingDate} 的順序（按住 ☰ 拖曳）</span>
          <button onclick="exitSortMode()" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit">完成排序</button>
        </div>` : '';
   // 日期新到舊；同一天內依 sort_order（當天分鐘數）由早到晚，沒有值的排最後
-  const ord = e => (e.sort_order==null||isNaN(e.sort_order)) ? Infinity : Number(e.sort_order);
-  const sorted = [...list].sort((a,b)=> b.date.localeCompare(a.date) || ord(a)-ord(b));
+  const sorted = [...list].sort((a,b)=> b.date.localeCompare(a.date) || byOrder(a,b));
   const days = ['日','一','二','三','四','五','六'];
-  const grpHdr = (label, exps, date) => `<div class="date-header"><span class="date-label">${label}</span>
+  // open 傳 undefined＝這個分頁不收合（分類、付款人維持原樣），傳 true/false 才有箭頭
+  const grpHdr = (label, exps, date, open) => `<div class="date-header"${open===undefined?'':` onclick="toggleDay('${date}')" style="cursor:pointer;user-select:none"`}>
+    <span class="date-label">${open===undefined?'':`<span style="display:inline-block;width:13px;color:var(--text3)">${open?'▾':'▸'}</span>`}${label}</span>
     <span style="display:flex;align-items:center;gap:8px">
-      <span class="date-total">${fmtDual(sumJPY(exps),sumTWD(exps))}</span>
-      ${date&&exps.length>1?`<button onclick="toggleSortMode('${date}')" title="調整這天的順序" style="background:${sortingDate===date?'var(--orange)':'none'};color:${sortingDate===date?'#fff':'var(--text3)'};border:1px solid ${sortingDate===date?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit">⇅ 排序</button>`:''}
+      <span class="date-total">${open===undefined?'':`${exps.length} 筆 · `}${fmtDual(sumJPY(exps),sumTWD(exps))}</span>
+      ${date&&exps.length>1?`<button onclick="event.stopPropagation();toggleSortMode('${date}')" title="調整這天的順序" style="background:${sortingDate===date?'var(--orange)':'none'};color:${sortingDate===date?'#fff':'var(--text3)'};border:1px solid ${sortingDate===date?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit">⇅ 排序</button>`:''}
     </span></div>`;
   if (recTab==='date') {
     const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
     cont.innerHTML = sortBar + Object.entries(byDate).map(([date,exps])=>{
       const d=new Date(date+'T00:00:00');
-      return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps,date)}${exps.map(expenseHTML).join('')}</div>`;
+      // 搜尋中就全部展開（不然搜到的東西還藏在收起來的日期裡），排序中的那天也一定展開
+      const open = !!q || sortingDate===date || expandedDays.has(date);
+      return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps,date,open)}${open?exps.map(expenseHTML).join(''):''}</div>`;
     }).join('');
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
@@ -2527,12 +2659,13 @@ function openAddModal() {
   document.getElementById('mName').value = '';
   document.getElementById('mAmt').value = '';
   document.getElementById('mDate').value = todayStr();
+  document.getElementById('mTime').value = fmtMins(nowMins());  // 手動記帳預設就是現在，要改或清空都可以
   document.getElementById('mStore').value = '';
   document.getElementById('mNotes').value = '';
   document.getElementById('amtConvert').textContent = '';
   document.getElementById('photoPreviewWrap').style.display = 'none';
   // 新增模式：所有欄位解鎖
-  ['mName','mAmt','mDate','mStore'].forEach(f => { document.getElementById(f).disabled = false; });
+  ['mName','mAmt','mDate','mTime','mStore'].forEach(f => { document.getElementById(f).disabled = false; });
   document.getElementById('modalPayerSelect').style.pointerEvents = '';
   document.getElementById('catSelect').style.pointerEvents = '';
   document.getElementById('paySelect').style.pointerEvents = '';
@@ -2571,6 +2704,7 @@ function openEditModal(id) {
   document.getElementById('mName').value = e.name;
   document.getElementById('mAmt').value = e.currency==='TWD' ? (e.amount_original||e.amount) : e.amount;
   document.getElementById('mDate').value = e.date;
+  document.getElementById('mTime').value = fmtMins(e.time_min);  // 沒有真實時間就留空，自己填也可以
   document.getElementById('mStore').value = e.store||'';
   document.getElementById('mNotes').value = e.notes||'';
   if (e.photo_url) {
@@ -2584,7 +2718,7 @@ function openEditModal(id) {
     document.getElementById('photoPreviewWrap').style.display = 'none';
   }
   // 非發起人：鎖定金額/分攤欄位，只能新增照片
-  const lockFields = ['mName','mAmt','mDate','mStore'];
+  const lockFields = ['mName','mAmt','mDate','mTime','mStore'];
   lockFields.forEach(f => { document.getElementById(f).disabled = !isOwner; });
   document.getElementById('modalPayerSelect').style.pointerEvents = isOwner ? '' : 'none';
   document.getElementById('catSelect').style.pointerEvents = isOwner ? '' : 'none';
@@ -2713,9 +2847,11 @@ async function saveExpense() {
     if (state.pendingPhotoBase64) {
       photoUrl = await uploadToStorage(dataUrlToBlob(state.pendingPhotoBase64), 'receipts');
     }
+    // 時間欄位是使用者自己填的，算真實時間；沒填就是不明（列表不顯示時間）
+    const timeMin = minsOfDay(document.getElementById('mTime').value);
     const exp = {
       name,
-      ...(state.editId ? {} : { sort_order: nowMins() }), // 新增才給排序值，編輯不動原本的順序
+      time_min: timeMin,
       amount: rawAmt,          // 原始金額（日圓或台幣）
       amount_original: rawAmt, // 同上，備用
       amount_twd: amountTWD,   // 統一台幣，供分攤/統計用
@@ -2731,12 +2867,16 @@ async function saveExpense() {
       photo_url: photoUrl,
     };
     if (state.editId) {
+      // 填了時間就回到「照時間排」，先前手動拖出來的位置讓位給它；沒填就不動順序
+      if (timeMin != null) { exp.sort_order = timeMin; exp.sort_manual = false; }
       // 非發起人只能更新照片
       const existing = state.expenses.find(x=>x.id===state.editId);
       const isOwner = !existing?.created_by || existing.created_by === state.myMemberId;
       const updatePayload = isOwner ? exp : { photo_url: photoUrl };
       await sb.from('expenses').update(updatePayload).eq('id', state.editId);
     } else {
+      exp.sort_order = timeMin ?? nowMins();  // 沒填時間也要有排序值，只是不顯示成時間
+      exp.sort_manual = false;
       exp.id = uid('exp');
       exp.created_by = state.myMemberId;
       await sb.from('expenses').insert(exp);
@@ -2744,6 +2884,7 @@ async function saveExpense() {
     await loadAll();
     setSyncDot('');
     closeModal();
+    expandedDays.add(date);   // 剛動過的那天展開，存完才看得到
     const cur=document.querySelector('.page.active')?.id;
     if(cur==='page-home')renderHome();
     else if(cur==='page-records')renderRecords();
@@ -3078,8 +3219,10 @@ async function saveReceiptExpenses(){
     groups[key].push(it);
   });
   const now=Date.now();
-  // 排序值：優先用收據上印的時間，讀不到就用當下時間
-  const receiptMins = minsOfDay(pendingReceipt.time) ?? nowMins();
+  // 真實時間只認收據上印的（Edge Function 讀不到就是 null，列表不顯示時間）；
+  // 排序值讀不到才退回掃描當下，那只用來排順序，不會被當成時間顯示出來。
+  const receiptTime = minsOfDay(pendingReceipt.time);
+  const receiptMins = receiptTime ?? nowMins();
   // 按比例分攤含稅合計到各付款人群組
   const allSubtotal=pendingReceipt.items.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
   const grandSubtotal=included.reduce((s,it)=>s+(it.quantity||1)*it.price,0);
@@ -3119,7 +3262,7 @@ async function saveReceiptExpenses(){
         ? `${it.name_zh} ¥${it.price.toLocaleString()}×${q} = ¥${lineTotal}`
         : `${it.name_zh} ¥${lineTotal}`;
     }).join('\n')+taxNote;
-    return{id:'exp_'+(now+idx),sort_order:receiptMins,name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:paidBy,split_mode:'equal',participants:parts,trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
+    return{id:'exp_'+(now+idx),sort_order:receiptMins,time_min:receiptTime,sort_manual:false,name:pendingReceipt.store_name_zh||(items[0]?.name_zh||'收據'),amount:amt,date:pendingReceipt.date,cat:pendingReceipt.category||'購物',pay:pendingReceipt.payment||'現金',store:pendingReceipt.store_name_zh,notes,photo_url:photoUrl,payer_id:paidBy,split_mode:'equal',participants:parts,trip_id:state.tripId,currency:'JPY',created_by:state.myMemberId};
   });
   await sb.from('expenses').insert(exps);
   const _sInsert=performance.now();
