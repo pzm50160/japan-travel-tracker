@@ -116,9 +116,23 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 .tab-btn{flex:1;padding:6px;text-align:center;font-size:12px;font-weight:500;border:none;background:transparent;border-radius:7px;cursor:pointer;font-family:inherit;color:var(--text2);transition:all .2s}
 .tab-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.08)}
 .date-group{margin-bottom:16px}
+.date-group.folded{margin-bottom:7px}
 .date-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .date-label{font-size:13px;font-weight:500}
 .date-total{font-size:11px;color:var(--text2)}
+/* 可收合的日期標題：收起來時是一張卡（跟花費列同一套語言），展開後退成淡色標頭讓內容當主角 */
+.date-header.collapsible{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px 12px;margin-bottom:7px;gap:12px;cursor:pointer;user-select:none;-webkit-user-select:none;
+  transition:border-color .15s,background .15s}
+.date-header.collapsible:hover{border-color:var(--orange-mid)}
+.date-header.collapsible:active{background:#FAF9F7}
+.date-header.collapsible.open{background:transparent;border-color:transparent;padding:5px 3px;margin-bottom:6px}
+.date-header.collapsible .date-label{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;min-width:0;white-space:nowrap}
+.date-header.collapsible .date-label .tag{flex-shrink:0}
+.date-header .chev{color:var(--text3);flex-shrink:0;transition:transform .18s ease,color .15s}
+.date-header.collapsible.open .chev{transform:rotate(90deg);color:var(--orange)}
+.day-amt{display:block;font-size:13px;font-weight:600;font-family:'DM Mono',monospace;letter-spacing:-0.2px;white-space:nowrap}
+.day-amt-sub{display:block;font-size:10px;color:var(--text3);margin-top:1px;white-space:nowrap}
 /* SPLIT */
 .split-summary{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:11px;overflow:hidden}
 .split-summary-header{padding:13px 15px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
@@ -2379,20 +2393,31 @@ function renderRecords() {
   // 日期新到舊；同一天內依 sort_order（當天分鐘數）由早到晚，沒有值的排最後
   const sorted = [...list].sort((a,b)=> b.date.localeCompare(a.date) || byOrder(a,b));
   const days = ['日','一','二','三','四','五','六'];
-  // open 傳 undefined＝這個分頁不收合（分類、付款人維持原樣），傳 true/false 才有箭頭
-  const grpHdr = (label, exps, date, open) => `<div class="date-header"${open===undefined?'':` onclick="toggleDay('${date}')" style="cursor:pointer;user-select:none"`}>
-    <span class="date-label">${open===undefined?'':`<span style="display:inline-block;width:13px;color:var(--text3)">${open?'▾':'▸'}</span>`}${label}</span>
-    <span style="display:flex;align-items:center;gap:8px">
-      <span class="date-total">${open===undefined?'':`${exps.length} 筆 · `}${fmtDual(sumJPY(exps),sumTWD(exps))}</span>
-      ${date&&exps.length>1?`<button onclick="event.stopPropagation();toggleSortMode('${date}')" title="調整這天的順序" style="background:${sortingDate===date?'var(--orange)':'none'};color:${sortingDate===date?'#fff':'var(--text3)'};border:1px solid ${sortingDate===date?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit">⇅ 排序</button>`:''}
-    </span></div>`;
+  const chev = `<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
+  // open 傳 undefined＝這個分頁不收合（分類、付款人維持原樣），傳 true/false 才是可收合的日期卡
+  const grpHdr = (label, exps, date, open) => {
+    const fold = open !== undefined;
+    const jpy = sumJPY(exps), twd = sumTWD(exps);
+    return `<div class="date-header${fold?(open?' collapsible open':' collapsible'):''}"${fold?` onclick="toggleDay('${date}')"`:''}>
+      <span class="date-label">${fold?chev:''}${label}</span>
+      <span style="display:flex;align-items:center;gap:9px;flex-shrink:0">
+        ${fold
+          ? (open
+              ? `<span class="date-total">合計 ${fmtMain(jpy,twd)}</span>`
+              : `<span style="text-align:right"><span class="day-amt">${fmtMain(jpy,twd)}</span><span class="day-amt-sub">${fmtSub(jpy,twd,exps.length)}</span></span>`)
+          : `<span class="date-total">${fmtDual(jpy,twd)}</span>`}
+        ${(!fold||open)&&date&&exps.length>1?`<button onclick="event.stopPropagation();toggleSortMode('${date}')" title="調整這天的順序" style="background:${sortingDate===date?'var(--orange)':'none'};color:${sortingDate===date?'#fff':'var(--text3)'};border:1px solid ${sortingDate===date?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;flex-shrink:0">⇅ 排序</button>`:''}
+      </span></div>`;
+  };
   if (recTab==='date') {
     const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
     cont.innerHTML = sortBar + Object.entries(byDate).map(([date,exps])=>{
       const d=new Date(date+'T00:00:00');
       // 搜尋中就全部展開（不然搜到的東西還藏在收起來的日期裡），排序中的那天也一定展開
       const open = !!q || sortingDate===date || expandedDays.has(date);
-      return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps,date,open)}${open?exps.map(expenseHTML).join(''):''}</div>`;
+      const label = date.slice(5).replace('-','/')+' 週'+days[d.getDay()]
+        + (date===todayStr()?`<span class="tag" style="background:var(--orange-light);color:var(--orange)">今天</span>`:'');
+      return `<div class="date-group${open?'':' folded'}">${grpHdr(label,exps,date,open)}${open?exps.map(expenseHTML).join(''):''}</div>`;
     }).join('');
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
