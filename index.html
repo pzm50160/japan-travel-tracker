@@ -603,6 +603,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     <div class="total-banner-amount" id="recTotalJPY">¥0</div>
     <div class="total-banner-sub" id="recTotalSub">≈ NT$0 · 0 筆</div>
   </div>
+  <div style="position:relative;margin-bottom:10px">
+    <input class="form-input" id="recSearchInput" placeholder="搜尋品項、店名、備註…" oninput="renderRecords()" style="padding-right:34px">
+    <span onclick="document.getElementById('recSearchInput').value='';renderRecords()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text3);font-size:15px">✕</span>
+  </div>
   <div class="tab-toggle">
     <button class="tab-btn active" onclick="switchTab('date',this)">按日期</button>
     <button class="tab-btn" onclick="switchTab('cat',this)">按類別</button>
@@ -2137,10 +2141,11 @@ function expenseHTML(e) {
   const subAmt = e.currency==='TWD'
     ? `（直接台幣）`
     : `≈ NT$${Math.round(twdAmt).toLocaleString()}`;
-  // 收據照片不在列表直接展開（整張 320px 會讓紀錄很難滑），改成一個小標籤，
-  // 點標籤直接看大圖；點整列進編輯視窗裡也看得到。
-  const photoTag = e.photo_url
-    ? `<span class="tag" style="cursor:pointer;background:var(--orange-light);color:var(--orange)" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')">📷 收據</span>`
+  // 列表只留標頭、標籤與金額；照片與品項明細都在點進去的視窗裡看。
+  // 這裡只用兩個小圖示標示「有照片」「有明細」，讓列表可以快速滑。
+  const marks = (e.photo_url?'📷':'') + (e.notes?'📋':'');
+  const photoTag = marks
+    ? `<span style="font-size:11px;color:var(--text3);margin-left:4px">${marks}</span>`
     : '';
   return `<div class="expense-row" onclick="openEditModal('${e.id}')">
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
@@ -2153,7 +2158,6 @@ function expenseHTML(e) {
         ${e.store?'<span class="tag-store">'+esc(e.store)+'</span>':''}
         ${photoTag}
       </div>
-      ${e.notes ? `<div style="margin-top:5px;font-size:10px;color:var(--text3);background:var(--bg);border-radius:6px;padding:6px 8px;white-space:pre-line;line-height:1.6">📋 ${esc(e.notes)}</div>` : ''}
     </div>
     <div class="expense-right">
       <div class="amount-jpy">${dispAmt}</div>
@@ -2168,12 +2172,18 @@ function expenseHTML(e) {
 // ─── RECORDS ──────────────────────────────────────────────────────────────────
 function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
 function renderRecords() {
-  const allTWD = sumTWD(state.expenses), allJPY = sumJPY(state.expenses);
+  // 搜尋：比對名稱、店名、備註（品項明細在裡面）、分類、付款方式、日期、金額
+  const q = (document.getElementById('recSearchInput')?.value || '').trim().toLowerCase();
+  const match = e => !q || [e.name,e.store,e.notes,e.cat,e.pay,e.date,String(e.amount)]
+    .some(v => (v||'').toString().toLowerCase().includes(q));
+  const list = state.expenses.filter(match);
+  const allTWD = sumTWD(list), allJPY = sumJPY(list);
   document.getElementById('recTotalJPY').textContent = fmtMain(allJPY, allTWD);
-  document.getElementById('recTotalSub').textContent = fmtSub(allJPY, allTWD, state.expenses.length);
+  document.getElementById('recTotalSub').textContent = fmtSub(allJPY, allTWD, list.length) + (q?`（共 ${state.expenses.length} 筆中符合）`:'');
   const cont = document.getElementById('recordsList');
   if (!state.expenses.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>還沒有記錄</div></div>'; return; }
-  const sorted = [...state.expenses].sort((a,b)=>b.date.localeCompare(a.date));
+  if (!list.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div>找不到符合「'+esc(q)+'」的記錄</div></div>'; return; }
+  const sorted = [...list].sort((a,b)=>b.date.localeCompare(a.date));
   const days = ['日','一','二','三','四','五','六'];
   const grpHdr = (label, exps) => `<div class="date-header"><span class="date-label">${label}</span><span class="date-total">${fmtDual(sumJPY(exps),sumTWD(exps))}</span></div>`;
   if (recTab==='date') {
@@ -2472,9 +2482,10 @@ async function deleteExpense(id) {
   showToast('已刪除');
 }
 function openEditModal(id) {
-  if (state.trip?.archived) { showToast('封存的旅程無法編輯花費'); return; }
   const e = state.expenses.find(x=>x.id===id); if(!e)return;
-  const isOwner = !e.created_by || e.created_by === state.myMemberId;
+  // 封存的旅程仍可點進來看收據與明細，只是不能改（原本是直接擋掉不給開）
+  const archived = !!state.trip?.archived;
+  const isOwner = (!e.created_by || e.created_by === state.myMemberId) && !archived;
   state.editId = id;
   state.selectedPayer = e.payer_id;
   state.selectedCat = e.cat; state.selectedPay = e.pay;
@@ -2485,6 +2496,7 @@ function openEditModal(id) {
   state.pendingPhotoBase64 = null;
   state.pendingPhotoUrl = e.photo_url || null;
   document.getElementById('modalTitle').textContent = isOwner ? '編輯花費' : '查看花費';
+  document.getElementById('mNotes').disabled = !isOwner;
   document.getElementById('mName').value = e.name;
   document.getElementById('mAmt').value = e.currency==='TWD' ? (e.amount_original||e.amount) : e.amount;
   document.getElementById('mDate').value = e.date;
@@ -2514,7 +2526,9 @@ function openEditModal(id) {
   }
   if (!isOwner) {
     const creator = state.members.find(m=>m.id===e.created_by);
-    notice.textContent = `此筆花費由 ${creator?.name||'其他人'} 記錄，你只能新增照片。`;
+    notice.textContent = archived
+      ? '旅程已封存，僅供查看。要修改請先到設定頁解除封存。'
+      : `此筆花費由 ${creator?.name||'其他人'} 記錄，你只能新增照片。`;
     notice.style.display = 'block';
   } else {
     notice.style.display = 'none';
