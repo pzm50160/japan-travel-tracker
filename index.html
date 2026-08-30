@@ -2169,9 +2169,7 @@ function expenseHTML(e) {
       : `<img src="${e.photo_url}" loading="lazy" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:pointer;border:1px solid var(--border);image-orientation:from-image">`;
   const timeTxt = fmtMins(e.sort_order);
   const inSort = sortingDate===e.date;
-  return `<div class="expense-row" onclick="${inSort?'':`openEditModal('${e.id}')`}"
-    ontouchstart="startPressSort('${e.id}','${e.date}')" ontouchend="cancelPressSort()" ontouchmove="cancelPressSort()"
-    onmousedown="startPressSort('${e.id}','${e.date}')" onmouseup="cancelPressSort()" onmouseleave="cancelPressSort()">
+  return `<div class="expense-row" onclick="${inSort?'':`openEditModal('${e.id}')`}">
     ${inSort?`<div style="display:flex;flex-direction:column;gap:4px;margin-right:6px">
       <button onclick="event.stopPropagation();moveExpense('${e.id}',-1)" style="width:30px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px">▲</button>
       <button onclick="event.stopPropagation();moveExpense('${e.id}',1)" style="width:30px;height:26px;border:1px solid var(--border);background:var(--surface);border-radius:6px;cursor:pointer;font-size:12px">▼</button>
@@ -2205,17 +2203,13 @@ function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn')
 // ── 同一天內手動調整順序 ────────────────────────────────
 // 長按任一筆進入該日的排序模式，用 ▲▼ 移動；寫入相鄰兩筆的中間值，
 // 所以不必重新編號整天的資料。
-let sortingDate=null, pressTimer=null;
-function startPressSort(id,date){
-  cancelPressSort();
-  pressTimer=setTimeout(()=>{
-    pressTimer=null;
-    if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
-    sortingDate=date; renderRecords();
-    showToast('排序模式：用 ▲▼ 調整，完成後按「完成排序」');
-  },600);
+let sortingDate=null;
+function toggleSortMode(date){
+  if(sortingDate===date){ sortingDate=null; renderRecords(); return; }
+  if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
+  sortingDate=date; renderRecords();
+  showToast('用 ▲▼ 調整順序，完成後按「完成排序」');
 }
-function cancelPressSort(){ if(pressTimer){clearTimeout(pressTimer);pressTimer=null;} }
 function exitSortMode(){ sortingDate=null; renderRecords(); }
 async function moveExpense(id,dir){
   const day=state.expenses.filter(e=>e.date===sortingDate)
@@ -2257,12 +2251,16 @@ function renderRecords() {
   const ord = e => (e.sort_order==null||isNaN(e.sort_order)) ? Infinity : Number(e.sort_order);
   const sorted = [...list].sort((a,b)=> b.date.localeCompare(a.date) || ord(a)-ord(b));
   const days = ['日','一','二','三','四','五','六'];
-  const grpHdr = (label, exps) => `<div class="date-header"><span class="date-label">${label}</span><span class="date-total">${fmtDual(sumJPY(exps),sumTWD(exps))}</span></div>`;
+  const grpHdr = (label, exps, date) => `<div class="date-header"><span class="date-label">${label}</span>
+    <span style="display:flex;align-items:center;gap:8px">
+      <span class="date-total">${fmtDual(sumJPY(exps),sumTWD(exps))}</span>
+      ${date&&exps.length>1?`<button onclick="toggleSortMode('${date}')" title="調整這天的順序" style="background:${sortingDate===date?'var(--orange)':'none'};color:${sortingDate===date?'#fff':'var(--text3)'};border:1px solid ${sortingDate===date?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit">⇅ 排序</button>`:''}
+    </span></div>`;
   if (recTab==='date') {
     const byDate = {}; sorted.forEach(e=>{(byDate[e.date]=byDate[e.date]||[]).push(e);});
     cont.innerHTML = sortBar + Object.entries(byDate).map(([date,exps])=>{
       const d=new Date(date+'T00:00:00');
-      return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps)}${exps.map(expenseHTML).join('')}</div>`;
+      return `<div class="date-group">${grpHdr(date+'（'+days[d.getDay()]+'）',exps,date)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
