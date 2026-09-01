@@ -95,8 +95,8 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 /* 排序模式：整列都是把手。原本只有 ☰ 那一小塊可拖，手指按偏就變成選取文字、
    iOS 還會跳出長按選單把拖曳中斷。touch-action:none 讓瀏覽器不要搶去做捲動，
    user-select / touch-callout 關掉選字，子元素一律不吃事件（不然會誤觸頭像、刪除鈕）。*/
-.expense-row.sorting-row{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.expense-row.sorting-row.dragging{cursor:grabbing}
+.expense-row.sorting-row{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .16s ease,border-color .15s}
+.expense-row.sorting-row.dragging{cursor:grabbing;transition:border-color .15s}
 .expense-row.sorting-row>*{pointer-events:none}
 .avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid var(--border)}
 .expense-info{flex:1;min-width:0}
@@ -2195,13 +2195,14 @@ function expenseHTML(e) {
       : `<img src="${e.photo_url}" loading="lazy" onclick="event.stopPropagation();showPhotoModal('${jsq(e.photo_url)}')" style="width:64px;height:64px;object-fit:cover;border-radius:8px;margin-top:6px;cursor:pointer;border:1px solid var(--border);image-orientation:from-image">`;
   // 時間只認 time_min（收據上印的、或自己填的）；sort_order 純粹是排序位置，不是時間
   const timeTxt = fmtMins(e.time_min);
-  const inSort = sortingDate===e.date;
+  const inSort = recTab==='cat' ? sortingCat===e.cat : sortingDate===e.date;
   return `<div class="expense-row${inSort?' sorting-row':''}" data-id="${e.id}"${inSort?` onpointerdown="startSortDrag(event,this)" title="按住上下拖曳"`:''} onclick="${inSort?'':`openEditModal('${e.id}')`}">
     ${inSort?`<div style="flex-shrink:0;padding:0 5px 0 1px;color:var(--text3);font-size:15px;line-height:1">☰</div>`:''}
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
       <div class="expense-name">${esc(e.name)}</div>
       <div class="expense-tags">
+        ${recTab==='date'?'':`<span class="tag" style="background:var(--bg);color:var(--text3)">${e.date.slice(5).replace('-','/')}</span>`}
         <span class="tag tag-cat">${esc(e.cat)}</span>
         <span class="tag tag-split">${splitLabel}</span>
         <span class="tag-pay">${esc(e.pay)}</span>
@@ -2224,7 +2225,7 @@ function expenseHTML(e) {
 }
 
 // ─── RECORDS ──────────────────────────────────────────────────────────────────
-function switchTab(tab, btn) { recTab=tab; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
+function switchTab(tab, btn) { recTab=tab; sortingDate=null; sortingCat=null; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderRecords(); }
 // ── 同一天內手動調整順序 ────────────────────────────────
 // 按日期標題的「⇅ 排序」進入該日的排序模式，按住每列左邊的 ☰ 上下拖曳。
 // 位置存 sort_order、真實時間存 time_min，兩者分開：拖曳只動位置不動時間，
@@ -2238,13 +2239,24 @@ function toggleDay(date){
   else expandedDays.add(date);
   renderRecords();
 }
+let sortingCat=null;           // 分類頁：正在排序的那個分類
 function toggleSortMode(date){
   if(sortingDate===date){ sortingDate=null; renderRecords(); return; }
   if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
+  sortingCat=null;
   sortingDate=date; expandedDays.add(date); renderRecords();   // 排序中的那天一定要看得到
   showToast('按住任一筆上下拖曳，完成後按「完成排序」');
 }
-function exitSortMode(){ sortingDate=null; renderRecords(); }
+// 分類頁的排序。順序值只在同一天內有意義，所以拖曳也只在「同一天的那幾筆」之間算數，
+// 拖到別天的位置會彈回去（見 saveCatOrder）。
+function toggleCatSortMode(cat){
+  if(sortingCat===cat){ sortingCat=null; renderRecords(); return; }
+  if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
+  sortingDate=null;
+  sortingCat=cat; renderRecords();
+  showToast('同一天的花費之間可以上下拖曳');
+}
+function exitSortMode(){ sortingDate=null; sortingCat=null; renderRecords(); }
 
 // 排序值：沒有值的排最後。不能直接把兩個 Infinity 相減（會變 NaN，排序結果會亂跳）
 const ordVal = e => (e.sort_order==null||isNaN(e.sort_order)) ? Infinity : Number(e.sort_order);
@@ -2257,16 +2269,31 @@ function byOrder(a,b){
 }
 
 // ── 拖曳排序 ──
-// 用 pointer 事件（手機觸控、電腦滑鼠同一套）。排序模式下整列都是把手，
-// 列上的 touch-action:none 才不會拖到一半變成整頁捲動。
-// 拖的時候直接搬 DOM，放開才算值、才寫資料庫。
+// 用 pointer 事件（手機觸控、電腦滑鼠同一套）。排序模式下整列都是把手。
+//
+// ⚠️ 拖曳期間「絕對不搬 DOM」。原本的寫法是每跨過一列就 insertBefore 換位，
+// 但搬節點在規範上等於先移除再插入，WebKit 會在那一刻釋放 pointer capture，
+// 於是第一次換位之後就收不到 pointermove —— 拖曳定住不動，手指繼續滑又沒人
+// preventDefault，就變成選取文字。現在改成只用 transform 讓位，放開才重排。
+//
+// 第二道保險：pointermove/up 綁在 document（capture 階段），就算 capture 真的
+// 掉了也收得到。座標一律用「文件座標」（clientY + scrollY），邊緣自動捲動時才不會歪掉。
 let dragSort=null;
 const blockSelect = ev => ev.preventDefault();   // 拖曳期間一律不准選字
 function startSortDrag(ev, row){
   if(!sortingDate || dragSort) return;
   if(ev.button!=null && ev.button>0) return;     // 只認主要按鍵／觸點
   ev.preventDefault(); ev.stopPropagation();
-  dragSort = { row, cont: row.parentElement, base: ev.clientY, dy: 0, lastY: ev.clientY, raf: 0 };
+  const cont = row.parentElement;
+  const els = [...cont.querySelectorAll('.expense-row')];
+  const idx = els.indexOf(row);
+  if(idx<0) return;
+  const sy = window.scrollY;
+  // 開拖時把每一列的位置量好（文件座標），之後都拿這份原始位置來比，不再重新量
+  const items = els.map(el=>{ const r=el.getBoundingClientRect();
+    return { el, center: r.top + sy + r.height/2 }; });
+  const h = row.getBoundingClientRect().height + 7;   // 讓位的距離＝列高＋列間距
+  dragSort = { row, cont, items, idx, target: idx, step: h, baseY: ev.clientY + sy, lastClientY: ev.clientY, raf: 0 };
   row.classList.add('dragging');
   row.style.position='relative'; row.style.zIndex='20';
   row.style.boxShadow='0 6px 16px rgba(0,0,0,.18)';
@@ -2278,77 +2305,95 @@ function startSortDrag(ev, row){
   const sel = window.getSelection && window.getSelection();
   if(sel && sel.removeAllRanges) sel.removeAllRanges();
   try{ row.setPointerCapture(ev.pointerId); }catch(_){}
-  row.onpointermove = moveSortDrag;
-  row.onpointerup = endSortDrag;
-  row.onpointercancel = endSortDrag;
+  document.addEventListener('pointermove', moveSortDrag, true);
+  document.addEventListener('pointerup', endSortDrag, true);
+  document.addEventListener('pointercancel', endSortDrag, true);
   dragSort.raf = requestAnimationFrame(autoScrollSortDrag);
+}
+// 被拖的那列跟著手指；中間被越過的那些列往反方向讓出一個位置
+function applyDrag(){
+  const d = dragSort;
+  const dy = (d.lastClientY + window.scrollY) - d.baseY;
+  d.row.style.transform = 'translateY('+dy+'px)';
+  const center = d.items[d.idx].center + dy;
+  let t = d.idx;
+  for(let i=d.idx+1;i<d.items.length;i++) if(center > d.items[i].center) t = i;
+  for(let i=d.idx-1;i>=0;i--)            if(center < d.items[i].center) t = i;
+  d.target = t;
+  d.items.forEach((it,i)=>{
+    if(i===d.idx) return;
+    let shift = 0;
+    if(t>d.idx && i>d.idx && i<=t) shift = -d.step;
+    else if(t<d.idx && i>=t && i<d.idx) shift = d.step;
+    it.el.style.transform = shift ? 'translateY('+shift+'px)' : '';
+  });
 }
 function moveSortDrag(ev){
   if(!dragSort) return;
   ev.preventDefault();
-  dragSort.lastY = ev.clientY;
-  dragSort.dy = ev.clientY - dragSort.base;
-  dragSort.row.style.transform = 'translateY('+dragSort.dy+'px)';
-  swapIfPassed();
-}
-// 拖過相鄰那列的中線就跟它對調。對調後這一列的版面位置會變，
-// 所以要把基準點跟著補回去，畫面上才不會跳一下。
-function swapIfPassed(){
-  const d=dragSort, row=d.row;
-  for(let guard=0; guard<50; guard++){
-    const r = row.getBoundingClientRect();
-    const mid = r.top + r.height/2;
-    const prev = row.previousElementSibling, next = row.nextElementSibling;
-    let dir=0, other=null;
-    if(prev && prev.classList.contains('expense-row')){
-      const pr=prev.getBoundingClientRect();
-      if(mid < pr.top + pr.height/2){ dir=-1; other=prev; }
-    }
-    if(!dir && next && next.classList.contains('expense-row')){
-      const nr=next.getBoundingClientRect();
-      if(mid > nr.top + nr.height/2){ dir=1; other=next; }
-    }
-    if(!dir) return;
-    const visualTop = r.top;
-    d.cont.insertBefore(row, dir<0 ? other : other.nextSibling);
-    row.style.transform='';
-    d.dy = visualTop - row.getBoundingClientRect().top;
-    d.base = d.lastY - d.dy;
-    row.style.transform='translateY('+d.dy+'px)';
-  }
+  dragSort.lastClientY = ev.clientY;
+  applyDrag();
 }
 // 拖到畫面上下緣時自動捲動，一天筆數多也不必分好幾次拖
 function autoScrollSortDrag(){
   if(!dragSort) return;
-  const y=dragSort.lastY, h=window.innerHeight, edge=90;
+  const y=dragSort.lastClientY, h=window.innerHeight, edge=90;
   let step=0;
   if(y<edge) step = -Math.min(14, (edge-y)/4);
   else if(y>h-edge) step = Math.min(14, (y-(h-edge))/4);
   if(step){
     const before=window.scrollY;
     window.scrollBy(0, step);
-    const moved=window.scrollY-before;
-    if(moved){
-      dragSort.base -= moved;
-      dragSort.dy = dragSort.lastY - dragSort.base;
-      dragSort.row.style.transform='translateY('+dragSort.dy+'px)';
-      swapIfPassed();
-    }
+    if(window.scrollY!==before) applyDrag();   // 座標是文件座標，捲完重算就好
   }
   dragSort.raf = requestAnimationFrame(autoScrollSortDrag);
 }
-function endSortDrag(ev){
+function endSortDrag(){
   if(!dragSort) return;
-  const { row, cont, raf } = dragSort;
+  const { row, items, idx, target, raf } = dragSort;
   cancelAnimationFrame(raf);
   dragSort=null;
+  items.forEach(it=>{ it.el.style.transform=''; });
   row.classList.remove('dragging');
-  row.style.transform=''; row.style.boxShadow=''; row.style.zIndex=''; row.style.position=''; row.style.borderColor='';
-  row.onpointermove = row.onpointerup = row.onpointercancel = null;
+  row.style.boxShadow=''; row.style.zIndex=''; row.style.position=''; row.style.borderColor='';
+  document.removeEventListener('pointermove', moveSortDrag, true);
+  document.removeEventListener('pointerup', endSortDrag, true);
+  document.removeEventListener('pointercancel', endSortDrag, true);
+  document.removeEventListener('selectstart', blockSelect, true);
   document.body.style.userSelect='';
   document.body.style.webkitUserSelect='';
-  document.removeEventListener('selectstart', blockSelect, true);
-  saveDayOrder([...cont.querySelectorAll('.expense-row')].map(r=>r.dataset.id), row.dataset.id);
+  if(target===idx) return;                     // 沒換位置就不用寫資料庫
+  const ids = items.map(it=>it.el.dataset.id);
+  const moved = ids.splice(idx,1)[0];
+  ids.splice(target,0,moved);
+  if(recTab==='cat') saveCatOrder(ids, moved);
+  else saveDayOrder(ids, moved);
+}
+// 分類頁拖完：先確認沒有拖出「那一天」的範圍，再把它換算成那一天的完整順序。
+// 只傳同分類的幾筆給 saveDayOrder 是不夠的 —— 那天其他分類的花費也在同一條時間軸上。
+async function saveCatOrder(newIds, movedId){
+  const moved = state.expenses.find(e=>e.id===movedId);
+  if(!moved) return;
+  const dateOf = id => state.expenses.find(e=>e.id===id)?.date;
+  const sameDay = newIds.filter(id => dateOf(id)===moved.date);   // 同分類、同一天，拖曳後的順序
+  const pos = newIds.indexOf(movedId);
+  // 有沒有拖出「那一天」的範圍：看落點的上下鄰居還是不是同一天。
+  // （不能拿同天的頭尾當範圍判斷 —— 被拖的那筆自己也在裡面，那樣永遠都算合法）
+  const near = [newIds[pos-1], newIds[pos+1]].some(id => id && dateOf(id)===moved.date);
+  if(!near){
+    showToast('只能在同一天的花費之間調整順序');
+    renderRecords();
+    return;
+  }
+  // 用同分類同一天的前後鄰居，決定它在「那一天全部花費」裡的位置
+  const k = sameDay.indexOf(movedId);
+  const prevId = k>0 ? sameDay[k-1] : null;
+  const nextId = k<sameDay.length-1 ? sameDay[k+1] : null;
+  const full = state.expenses.filter(e=>e.date===moved.date).sort(byOrder)
+    .map(e=>e.id).filter(id=>id!==movedId);
+  let at = prevId ? full.indexOf(prevId)+1 : (nextId ? full.indexOf(nextId) : full.length);
+  full.splice(at, 0, movedId);
+  await saveDayOrder(full, movedId);
 }
 // 依畫面上的最終順序寫回 sort_order。順序沒問題的那幾筆完全不動；被拖的那筆、
 // 還有原本沒有排序值的那些，才用前後鄰居內插出一個值插進去。
@@ -2399,9 +2444,9 @@ function renderRecords() {
   const cont = document.getElementById('recordsList');
   if (!state.expenses.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div>還沒有記錄</div></div>'; return; }
   if (!list.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div>找不到符合「'+esc(q)+'」的記錄</div></div>'; return; }
-  const sortBar = sortingDate
+  const sortBar = (sortingDate||sortingCat)
     ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:10px;font-size:12px;color:#B45309">
-         <span>調整 ${sortingDate} 的順序（按住整列拖曳）</span>
+         <span>${sortingCat?`調整「${esc(sortingCat)}」的順序（只能在同一天內移動）`:`調整 ${sortingDate} 的順序（按住整列拖曳）`}</span>
          <button onclick="exitSortMode()" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit">完成排序</button>
        </div>` : '';
   // 日期新到舊；同一天內依 sort_order（當天分鐘數）由早到晚，沒有值的排最後
@@ -2409,9 +2454,12 @@ function renderRecords() {
   const days = ['日','一','二','三','四','五','六'];
   const chev = `<svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
   // open 傳 undefined＝這個分頁不收合（分類、付款人維持原樣），傳 true/false 才是可收合的日期卡
-  const grpHdr = (label, exps, date, open) => {
+  const grpHdr = (label, exps, date, open, cat) => {
     const fold = open !== undefined;
     const jpy = sumJPY(exps), twd = sumTWD(exps);
+    const sortKey = cat || date;                       // 分類頁排分類，日期頁排那一天
+    const sortOn = cat ? sortingCat===cat : sortingDate===date;
+    const canSort = exps.length>1 && sortKey && (cat ? true : (!fold||open));
     return `<div class="date-header${fold?(open?' collapsible open':' collapsible'):''}"${fold?` onclick="toggleDay('${date}')"`:''}>
       <span class="date-label">${fold?chev:''}${label}</span>
       <span style="display:flex;align-items:center;gap:9px;flex-shrink:0">
@@ -2420,7 +2468,7 @@ function renderRecords() {
               ? `<span class="date-total">合計 ${fmtMain(jpy,twd)}</span>`
               : `<span style="text-align:right"><span class="day-amt">${fmtMain(jpy,twd)}</span><span class="day-amt-sub">${fmtSub(jpy,twd,exps.length)}</span></span>`)
           : `<span class="date-total">${fmtDual(jpy,twd)}</span>`}
-        ${(!fold||open)&&date&&exps.length>1?`<button onclick="event.stopPropagation();toggleSortMode('${date}')" title="調整這天的順序" style="background:${sortingDate===date?'var(--orange)':'none'};color:${sortingDate===date?'#fff':'var(--text3)'};border:1px solid ${sortingDate===date?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;flex-shrink:0">⇅ 排序</button>`:''}
+        ${canSort?`<button onclick="event.stopPropagation();${cat?`toggleCatSortMode('${jsq(cat)}')`:`toggleSortMode('${date}')`}" title="調整順序" style="background:${sortOn?'var(--orange)':'none'};color:${sortOn?'#fff':'var(--text3)'};border:1px solid ${sortOn?'var(--orange)':'var(--border)'};border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;flex-shrink:0">⇅ 排序</button>`:''}
       </span></div>`;
   };
   if (recTab==='date') {
@@ -2436,7 +2484,7 @@ function renderRecords() {
   } else if (recTab==='cat') {
     const byCat = {}; sorted.forEach(e=>{(byCat[e.cat]=byCat[e.cat]||[]).push(e);});
     cont.innerHTML = sortBar + Object.entries(byCat).sort((a,b)=>sumTWD(b[1])-sumTWD(a[1])).map(([cat,exps])=>{
-      return `<div class="date-group">${grpHdr(cat,exps)}${exps.map(expenseHTML).join('')}</div>`;
+      return `<div class="date-group">${grpHdr(cat,exps,null,undefined,cat)}${exps.map(expenseHTML).join('')}</div>`;
     }).join('');
   } else {
     cont.innerHTML = state.members.map(m=>{
