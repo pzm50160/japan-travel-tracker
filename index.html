@@ -92,6 +92,12 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 /* EXPENSE ROW */
 .expense-row{display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--surface);border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:7px;cursor:pointer;transition:border-color .15s}
 .expense-row:hover{border-color:var(--orange-mid)}
+/* 排序模式：整列都是把手。原本只有 ☰ 那一小塊可拖，手指按偏就變成選取文字、
+   iOS 還會跳出長按選單把拖曳中斷。touch-action:none 讓瀏覽器不要搶去做捲動，
+   user-select / touch-callout 關掉選字，子元素一律不吃事件（不然會誤觸頭像、刪除鈕）。*/
+.expense-row.sorting-row{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.expense-row.sorting-row.dragging{cursor:grabbing}
+.expense-row.sorting-row>*{pointer-events:none}
 .avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:17px;border:2px solid var(--border)}
 .expense-info{flex:1;min-width:0}
 .expense-name{font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2190,8 +2196,8 @@ function expenseHTML(e) {
   // 時間只認 time_min（收據上印的、或自己填的）；sort_order 純粹是排序位置，不是時間
   const timeTxt = fmtMins(e.time_min);
   const inSort = sortingDate===e.date;
-  return `<div class="expense-row" data-id="${e.id}" onclick="${inSort?'':`openEditModal('${e.id}')`}">
-    ${inSort?`<div onpointerdown="startSortDrag(event,this)" title="按住上下拖曳" style="touch-action:none;cursor:grab;flex-shrink:0;padding:10px 7px;margin:-10px -2px -10px -5px;color:var(--text3);font-size:15px;line-height:1;user-select:none;-webkit-user-select:none">☰</div>`:''}
+  return `<div class="expense-row${inSort?' sorting-row':''}" data-id="${e.id}"${inSort?` onpointerdown="startSortDrag(event,this)" title="按住上下拖曳"`:''} onclick="${inSort?'':`openEditModal('${e.id}')`}">
+    ${inSort?`<div style="flex-shrink:0;padding:0 5px 0 1px;color:var(--text3);font-size:15px;line-height:1">☰</div>`:''}
     <div class="avatar" style="overflow:hidden;cursor:pointer" onclick="event.stopPropagation();showMemberModal('${payer.id}')">${memberAvatar(payer)}</div>
     <div class="expense-info">
       <div class="expense-name">${esc(e.name)}</div>
@@ -2236,7 +2242,7 @@ function toggleSortMode(date){
   if(sortingDate===date){ sortingDate=null; renderRecords(); return; }
   if(state.trip?.archived){ showToast('封存的旅程無法調整順序'); return; }
   sortingDate=date; expandedDays.add(date); renderRecords();   // 排序中的那天一定要看得到
-  showToast('按住左邊的 ☰ 上下拖曳，完成後按「完成排序」');
+  showToast('按住任一筆上下拖曳，完成後按「完成排序」');
 }
 function exitSortMode(){ sortingDate=null; renderRecords(); }
 
@@ -2251,24 +2257,30 @@ function byOrder(a,b){
 }
 
 // ── 拖曳排序 ──
-// 用 pointer 事件（手機觸控、電腦滑鼠同一套）；把手上的 touch-action:none
-// 才不會拖到一半變成整頁捲動。拖的時候直接搬 DOM，放開才算值、才寫資料庫。
+// 用 pointer 事件（手機觸控、電腦滑鼠同一套）。排序模式下整列都是把手，
+// 列上的 touch-action:none 才不會拖到一半變成整頁捲動。
+// 拖的時候直接搬 DOM，放開才算值、才寫資料庫。
 let dragSort=null;
-function startSortDrag(ev, handle){
-  if(!sortingDate) return;
+const blockSelect = ev => ev.preventDefault();   // 拖曳期間一律不准選字
+function startSortDrag(ev, row){
+  if(!sortingDate || dragSort) return;
+  if(ev.button!=null && ev.button>0) return;     // 只認主要按鍵／觸點
   ev.preventDefault(); ev.stopPropagation();
-  const row = handle.closest('.expense-row');
-  if(!row) return;
   dragSort = { row, cont: row.parentElement, base: ev.clientY, dy: 0, lastY: ev.clientY, raf: 0 };
+  row.classList.add('dragging');
   row.style.position='relative'; row.style.zIndex='20';
   row.style.boxShadow='0 6px 16px rgba(0,0,0,.18)';
   row.style.borderColor='var(--orange)';
-  handle.style.cursor='grabbing';
+  // 選字的防線：關掉整頁選取、擋 selectstart、把已經選起來的清掉
   document.body.style.userSelect='none';
-  try{ handle.setPointerCapture(ev.pointerId); }catch(_){}
-  handle.onpointermove = moveSortDrag;
-  handle.onpointerup = endSortDrag;
-  handle.onpointercancel = endSortDrag;
+  document.body.style.webkitUserSelect='none';
+  document.addEventListener('selectstart', blockSelect, true);
+  const sel = window.getSelection && window.getSelection();
+  if(sel && sel.removeAllRanges) sel.removeAllRanges();
+  try{ row.setPointerCapture(ev.pointerId); }catch(_){}
+  row.onpointermove = moveSortDrag;
+  row.onpointerup = endSortDrag;
+  row.onpointercancel = endSortDrag;
   dragSort.raf = requestAnimationFrame(autoScrollSortDrag);
 }
 function moveSortDrag(ev){
@@ -2330,10 +2342,12 @@ function endSortDrag(ev){
   const { row, cont, raf } = dragSort;
   cancelAnimationFrame(raf);
   dragSort=null;
+  row.classList.remove('dragging');
   row.style.transform=''; row.style.boxShadow=''; row.style.zIndex=''; row.style.position=''; row.style.borderColor='';
+  row.onpointermove = row.onpointerup = row.onpointercancel = null;
   document.body.style.userSelect='';
-  const handle=ev.currentTarget;
-  if(handle){ handle.onpointermove=handle.onpointerup=handle.onpointercancel=null; handle.style.cursor='grab'; }
+  document.body.style.webkitUserSelect='';
+  document.removeEventListener('selectstart', blockSelect, true);
   saveDayOrder([...cont.querySelectorAll('.expense-row')].map(r=>r.dataset.id), row.dataset.id);
 }
 // 依畫面上的最終順序寫回 sort_order。順序沒問題的那幾筆完全不動；被拖的那筆、
@@ -2387,7 +2401,7 @@ function renderRecords() {
   if (!list.length) { cont.innerHTML='<div class="empty"><div class="empty-icon">🔍</div><div>找不到符合「'+esc(q)+'」的記錄</div></div>'; return; }
   const sortBar = sortingDate
     ? `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--orange-light);border:1px solid #F5C9A8;border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:10px;font-size:12px;color:#B45309">
-         <span>調整 ${sortingDate} 的順序（按住 ☰ 拖曳）</span>
+         <span>調整 ${sortingDate} 的順序（按住整列拖曳）</span>
          <button onclick="exitSortMode()" style="background:var(--orange);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit">完成排序</button>
        </div>` : '';
   // 日期新到舊；同一天內依 sort_order（當天分鐘數）由早到晚，沒有值的排最後
